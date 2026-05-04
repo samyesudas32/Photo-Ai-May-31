@@ -1,4 +1,3 @@
-
 import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowRight, CheckCircle2, UserCheck, Zap, Download, Layers, Camera } from 'lucide-react';
