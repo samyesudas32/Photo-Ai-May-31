@@ -8,7 +8,6 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default function LandingPage() {
   const heroImage = PlaceHolderImages.find(img => img.id === 'hero-portrait');
-  const resultImage = PlaceHolderImages.find(img => img.id === 'sample-result');
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -50,14 +49,20 @@ export default function LandingPage() {
                 <div className="absolute -inset-1 bg-gradient-to-r from-primary to-secondary rounded-[2rem] blur opacity-25 group-hover:opacity-40 transition duration-1000"></div>
                 <div className="relative bg-white rounded-[2rem] p-4 shadow-2xl">
                   <div className="overflow-hidden rounded-[1.5rem]">
-                    <Image 
-                      src={heroImage?.imageUrl || ''} 
-                      alt="Before and after passport photo" 
-                      width={1200}
-                      height={800}
-                      className="object-cover w-full h-[400px]"
-                      data-ai-hint="portrait woman"
-                    />
+                    {heroImage?.imageUrl ? (
+                      <Image 
+                        src={heroImage.imageUrl} 
+                        alt="Before and after passport photo" 
+                        width={1200}
+                        height={800}
+                        className="object-cover w-full h-[400px]"
+                        data-ai-hint="portrait woman"
+                      />
+                    ) : (
+                      <div className="w-full h-[400px] bg-muted flex items-center justify-center">
+                        <Camera className="h-12 w-12 text-muted-foreground/30" />
+                      </div>
+                    )}
                   </div>
                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-primary text-white font-bold py-2 px-6 rounded-full shadow-lg border-4 border-white">
                     AI POWERED

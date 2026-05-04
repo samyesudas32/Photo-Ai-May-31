@@ -1,3 +1,16 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "hero-portrait",
+      "description": "Professional portrait for passport conversion",
+      "imageUrl": "https://picsum.photos/seed/pixelpass-hero/1200/800",
+      "imageHint": "portrait woman"
+    },
+    {
+      "id": "sample-result",
+      "description": "Passport compliant result",
+      "imageUrl": "https://picsum.photos/seed/pixelpass-result/600/600",
+      "imageHint": "passport photo"
+    }
+  ]
 }
