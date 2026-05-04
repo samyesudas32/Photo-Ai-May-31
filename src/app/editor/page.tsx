@@ -211,9 +211,6 @@ export default function EditorPage() {
   const handleBgColorChange = (color: string) => {
     setSelectedBgColor(color);
     if (user && db) {
-      // We must include the 'id' field to satisfy the security rules
-      // which check for request.resource.data.id == userId (on create)
-      // or request.resource.data.id == resource.data.id (on update)
       setDocumentNonBlocking(doc(db, 'users', user.uid), {
         id: user.uid,
         email: user.email || 'anonymous@pixelpass.ai',
@@ -256,13 +253,13 @@ export default function EditorPage() {
         title: "Success!",
         description: "Your passport photo has been professionally processed.",
       });
-    } catch (error) {
+    } catch (error: any) {
       clearInterval(progressInterval);
       console.error(error);
       toast({
         variant: "destructive",
         title: "Processing Failed",
-        description: "There was an error transforming your photo. Please try another image.",
+        description: error.message || "There was an error transforming your photo. Please try another image.",
       });
     } finally {
       setIsProcessing(false);

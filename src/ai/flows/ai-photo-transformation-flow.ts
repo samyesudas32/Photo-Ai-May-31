@@ -1,11 +1,10 @@
+
 'use server';
 /**
  * @fileOverview A Genkit flow for transforming an uploaded portrait photo into a passport-compliant photo,
  * with optional professional clothing overlays and customizable background color.
  *
  * - transformPhoto - A function that handles the AI photo transformation process.
- * - AiPhotoTransformationInput - The input type for the transformPhoto function.
- * - AiPhotoTransformationOutput - The return type for the transformPhoto function.
  */
 
 import { ai } from '@/ai/genkit';
@@ -80,7 +79,6 @@ Requirements:
 - Format the image to passport standards:
   - Head centered and properly sized
   - Neutral background
-  - No accessories or obstructions unless culturally required
 - Output a clean, professional, print-ready passport photo.
 
 Important:
@@ -124,9 +122,8 @@ const aiPhotoTransformationFlow = ai.defineFlow(
     } catch (error: any) {
       // Handle quota and rate limit errors with a user-friendly message
       if (error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED')) {
-        throw new Error('AI processing quota exceeded for the free tier. Please wait a moment and try again, or check your Gemini API plan limits.');
+        throw new Error('AI processing quota exceeded. Please wait a moment and try again, or check your Gemini API plan limits at ai.google.dev.');
       }
-      // Re-throw other errors to be handled by the UI toast
       throw error;
     }
   }
