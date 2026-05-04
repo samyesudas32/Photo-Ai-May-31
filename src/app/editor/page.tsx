@@ -83,7 +83,6 @@ export default function EditorPage() {
   const [selectedBgColor, setSelectedBgColor] = useState<string>('#FFFFFF');
   const [isAddSizeOpen, setIsAddSizeOpen] = useState(false);
   
-  // Custom Size Form State
   const [newSize, setNewSize] = useState({
     name: '',
     description: '',
@@ -99,14 +98,12 @@ export default function EditorPage() {
   const db = useFirestore();
   const auth = useAuth();
 
-  // Handle Anonymous Login
   useEffect(() => {
     if (!user && auth) {
       initiateAnonymousSignIn(auth);
     }
   }, [user, auth]);
 
-  // Fetch User Profile to get preferences
   const userProfileRef = useMemoFirebase(() => {
     if (!db || !user) return null;
     return doc(db, 'users', user.uid);
@@ -114,9 +111,21 @@ export default function EditorPage() {
 
   const { data: profile } = useDoc<any>(userProfileRef);
 
-  // Sync background color from profile once loaded
+  // Initialize profile document if it doesn't exist
   useEffect(() => {
-    if (profile?.lastSelectedBgColor && selectedBgColor === '#FFFFFF') {
+    if (user && db && !profile && !isProcessing) {
+      setDocumentNonBlocking(doc(db, 'users', user.uid), {
+        id: user.uid,
+        email: user.email || 'anonymous@pixelpass.ai',
+        lastSelectedBgColor: '#FFFFFF',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    }
+  }, [user, db, profile, isProcessing]);
+
+  useEffect(() => {
+    if (profile?.lastSelectedBgColor) {
       setSelectedBgColor(profile.lastSelectedBgColor);
     }
   }, [profile?.lastSelectedBgColor]);
@@ -210,7 +219,6 @@ export default function EditorPage() {
   const handleBgColorChange = (color: string) => {
     setSelectedBgColor(color);
     if (user && db) {
-      // CRITICAL: Always include 'id' field in user profile updates to satisfy security rules
       setDocumentNonBlocking(doc(db, 'users', user.uid), {
         id: user.uid,
         email: user.email || 'anonymous@pixelpass.ai',
@@ -221,7 +229,6 @@ export default function EditorPage() {
     }
   };
 
-  // Fetch Custom Sizes
   const customSizesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return collection(db, 'users', user.uid, 'custom_passport_sizes');
@@ -255,11 +262,10 @@ export default function EditorPage() {
       });
     } catch (error: any) {
       clearInterval(progressInterval);
-      console.error(error);
       toast({
         variant: "destructive",
         title: "Processing Failed",
-        description: error.message || "There was an error transforming your photo. Please try another image.",
+        description: error.message || "There was an error transforming your photo.",
       });
     } finally {
       setIsProcessing(false);
@@ -301,7 +307,7 @@ export default function EditorPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           <div className="lg:col-span-8 space-y-6">
-            <Card className="min-h-[500px] flex flex-col items-center justify-center border-dashed border-2 bg-white relative overflow-hidden group">
+            <Card className="min-h-[500px] flex flex-col items-center justify-center border-dashed border-2 bg-white relative overflow-hidden">
               {!previewUrl ? (
                 <div 
                   className="flex flex-col items-center justify-center p-12 text-center cursor-pointer w-full h-full"
@@ -326,7 +332,7 @@ export default function EditorPage() {
               ) : (
                 <div className="w-full h-full flex flex-col md:flex-row gap-4 p-4">
                   <div className="flex-1 relative bg-muted rounded-xl overflow-hidden border">
-                    <div className="absolute top-4 left-4 z-10 bg-black/60 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm backdrop-blur-sm">
+                    <div className="absolute top-4 left-4 z-10 bg-black/60 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm">
                       ORIGINAL
                     </div>
                     <Image 
@@ -353,12 +359,7 @@ export default function EditorPage() {
                   
                   {isProcessing && (
                     <div className="flex-1 flex flex-col items-center justify-center space-y-4 bg-muted/30 rounded-xl border animate-pulse">
-                      <div className="relative">
-                        <Camera className="h-12 w-12 text-primary animate-bounce" />
-                        <div className="absolute -top-1 -right-1">
-                          <RefreshCw className="h-5 w-5 text-secondary animate-spin" />
-                        </div>
-                      </div>
+                      <Camera className="h-12 w-12 text-primary animate-bounce" />
                       <div className="text-center">
                         <p className="font-bold text-lg">Enhancing Image...</p>
                         <p className="text-xs text-muted-foreground">Applying selected standards</p>
@@ -401,7 +402,6 @@ export default function EditorPage() {
                 <CardDescription>Configure your passport photo parameters.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Clothing Style */}
                 <div className="space-y-4">
                   <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Clothing Style</Label>
                   <RadioGroup 
@@ -434,7 +434,6 @@ export default function EditorPage() {
                   </RadioGroup>
                 </div>
 
-                {/* Background Color */}
                 <div className="space-y-4 pt-4 border-t">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Background Color</Label>
@@ -475,7 +474,6 @@ export default function EditorPage() {
                   </div>
                 </div>
 
-                {/* Photo Size */}
                 <div className="space-y-4 pt-4 border-t">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Photo Size</Label>
@@ -509,7 +507,6 @@ export default function EditorPage() {
                               onChange={(e) => setNewSize({...newSize, description: e.target.value})}
                             />
                           </div>
-                          
                           <div className="space-y-3">
                             <Label>Dimensions</Label>
                             <Tabs value={newSize.unit} onValueChange={(v) => handleUnitChange(v as Unit)}>

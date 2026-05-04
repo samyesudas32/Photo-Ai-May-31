@@ -73,7 +73,7 @@ Requirements:
 - Apply subtle, natural skin retouching:
   - Remove temporary blemishes, glare, or shine
   - Keep natural skin texture (avoid over-smoothing)
-- Upscale the image to high resolution (target: 4K quality) while maintaining realism.
+- Upscale the image to high resolution while maintaining realism.
 - Ensure color accuracy and natural skin tones.
 - Format the image to passport standards:
   - Head centered and properly sized
@@ -113,7 +113,6 @@ const aiPhotoTransformationFlow = ai.defineFlow(
         coatInstructions,
       });
 
-      // Extract the generated image from the media part of the response
       const mediaPart = response.media?.[0];
       if (!mediaPart || !mediaPart.url) {
         throw new Error('AI failed to generate the processed image. Please try again with a different photo.');
@@ -123,14 +122,14 @@ const aiPhotoTransformationFlow = ai.defineFlow(
     } catch (error: any) {
       const errorMsg = error.message || '';
       
-      // Specifically handle the "limit: 0" case which indicates regional/tier restrictions
+      // Handle the "limit: 0" case which indicates regional/tier restrictions
       if (errorMsg.includes('limit: 0')) {
         throw new Error('This AI model is restricted in your region (limit: 0). If you are in the EU/UK, some experimental Gemini features may be unavailable. Try checking your Gemini API console at ai.google.dev or ensure your project has high-tier access enabled.');
       }
 
       // Handle general quota and rate limit errors
       if (errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED')) {
-        throw new Error('AI processing quota exceeded. Please wait a moment and try again, or check your Gemini API plan limits at ai.google.dev.');
+        throw new Error('AI processing quota exceeded. Please wait a moment and try again.');
       }
       
       throw error;

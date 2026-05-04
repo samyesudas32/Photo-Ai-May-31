@@ -14,7 +14,6 @@ export default function LandingPage() {
       <Header />
       
       <main className="flex-1">
-        {/* Hero Section */}
         <section className="relative overflow-hidden py-24 md:py-32">
           <div className="container mx-auto px-4 relative z-10">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
@@ -48,24 +47,23 @@ export default function LandingPage() {
               <div className="relative group">
                 <div className="absolute -inset-1 bg-gradient-to-r from-primary to-secondary rounded-[2rem] blur opacity-25 group-hover:opacity-40 transition duration-1000"></div>
                 <div className="relative bg-white rounded-[2rem] p-4 shadow-2xl">
-                  <div className="overflow-hidden rounded-[1.5rem]">
+                  <div className="overflow-hidden rounded-[1.5rem] bg-muted aspect-[3/2] relative">
                     {heroImage?.imageUrl ? (
                       <Image 
                         src={heroImage.imageUrl} 
                         alt="Before and after passport photo" 
-                        width={1200}
-                        height={800}
-                        className="object-cover w-full h-[400px]"
+                        fill
+                        className="object-cover"
                         data-ai-hint="portrait woman"
                         priority
                       />
                     ) : (
-                      <div className="w-full h-[400px] bg-muted flex items-center justify-center">
+                      <div className="w-full h-full flex items-center justify-center">
                         <Camera className="h-12 w-12 text-muted-foreground/30" />
                       </div>
                     )}
                   </div>
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-primary text-white font-bold py-2 px-6 rounded-full shadow-lg border-4 border-white">
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-primary text-white font-bold py-2 px-6 rounded-full shadow-lg border-4 border-white z-20">
                     AI POWERED
                   </div>
                 </div>
@@ -74,7 +72,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Features Section */}
         <section id="how-it-works" className="py-24 bg-white/50">
           <div className="container mx-auto px-4">
             <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
