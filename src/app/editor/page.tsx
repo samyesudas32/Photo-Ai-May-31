@@ -17,7 +17,8 @@ import {
   Briefcase,
   Plus,
   Settings,
-  Scale
+  Scale,
+  Ruler
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -30,6 +31,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { 
   Dialog, 
   DialogContent, 
@@ -51,6 +53,9 @@ import { collection, doc } from "firebase/firestore";
 import { initiateAnonymousSignIn } from "@/firebase/non-blocking-login";
 
 type CoatStyle = 'none' | 'suit' | 'blazer' | 'overcoat';
+type Unit = 'cm' | 'in' | 'px';
+
+const DPI = 300;
 
 interface CustomSize {
   id: string;
@@ -76,8 +81,9 @@ export default function EditorPage() {
   const [newSize, setNewSize] = useState({
     name: '',
     description: '',
-    width: 5.1, // Default 2 inches in cm
-    height: 5.1
+    width: 5.1,
+    height: 5.1,
+    unit: 'cm' as Unit
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -123,6 +129,32 @@ export default function EditorPage() {
     }
   };
 
+  const convertToCm = (val: number, fromUnit: Unit): number => {
+    if (fromUnit === 'cm') return val;
+    if (fromUnit === 'in') return val * 2.54;
+    if (fromUnit === 'px') return (val / DPI) * 2.54;
+    return val;
+  };
+
+  const convertFromCm = (cm: number, toUnit: Unit): number => {
+    if (toUnit === 'cm') return cm;
+    if (toUnit === 'in') return cm / 2.54;
+    if (toUnit === 'px') return (cm / 2.54) * DPI;
+    return cm;
+  };
+
+  const handleUnitChange = (nextUnit: Unit) => {
+    const currentWidthInCm = convertToCm(newSize.width, newSize.unit);
+    const currentHeightInCm = convertToCm(newSize.height, newSize.unit);
+    
+    setNewSize(prev => ({
+      ...prev,
+      unit: nextUnit,
+      width: Number(convertFromCm(currentWidthInCm, nextUnit).toFixed(2)),
+      height: Number(convertFromCm(currentHeightInCm, nextUnit).toFixed(2))
+    }));
+  };
+
   const handleSaveCustomSize = () => {
     if (!user || !db) return;
     if (!newSize.name || !newSize.width || !newSize.height) {
@@ -134,14 +166,17 @@ export default function EditorPage() {
       return;
     }
 
+    const widthInCm = convertToCm(newSize.width, newSize.unit);
+    const heightInCm = convertToCm(newSize.height, newSize.unit);
+
     const sizeId = doc(collection(db, 'users', user.uid, 'custom_passport_sizes')).id;
     const sizeData: CustomSize = {
       id: sizeId,
       userId: user.uid,
       name: newSize.name,
       description: newSize.description,
-      widthCm: Number(newSize.width),
-      heightCm: Number(newSize.height),
+      widthCm: Number(widthInCm.toFixed(2)),
+      heightCm: Number(heightInCm.toFixed(2)),
       createdAt: new Date().toISOString()
     };
 
@@ -152,7 +187,7 @@ export default function EditorPage() {
     );
 
     setIsAddSizeOpen(false);
-    setNewSize({ name: '', description: '', width: 5.1, height: 5.1 });
+    setNewSize({ name: '', description: '', width: 5.1, height: 5.1, unit: 'cm' });
     toast({
       title: "Size Saved",
       description: "Your custom passport size has been saved.",
@@ -371,7 +406,7 @@ export default function EditorPage() {
                           <Plus className="h-4 w-4 mr-1" /> Custom Size
                         </Button>
                       </DialogTrigger>
-                      <DialogContent>
+                      <DialogContent className="sm:max-w-md">
                         <DialogHeader>
                           <DialogTitle>Add Custom Passport Size</DialogTitle>
                           <DialogDescription>Define specific dimensions for your photo requirements.</DialogDescription>
@@ -395,26 +430,37 @@ export default function EditorPage() {
                               onChange={(e) => setNewSize({...newSize, description: e.target.value})}
                             />
                           </div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="width">Width (cm)</Label>
-                              <Input 
-                                id="width" 
-                                type="number" 
-                                step="0.1"
-                                value={newSize.width}
-                                onChange={(e) => setNewSize({...newSize, width: Number(e.target.value)})}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="height">Height (cm)</Label>
-                              <Input 
-                                id="height" 
-                                type="number" 
-                                step="0.1"
-                                value={newSize.height}
-                                onChange={(e) => setNewSize({...newSize, height: Number(e.target.value)})}
-                              />
+                          
+                          <div className="space-y-3">
+                            <Label>Dimensions</Label>
+                            <Tabs value={newSize.unit} onValueChange={(v) => handleUnitChange(v as Unit)}>
+                              <TabsList className="grid w-full grid-cols-3">
+                                <TabsTrigger value="cm">CM</TabsTrigger>
+                                <TabsTrigger value="in">IN</TabsTrigger>
+                                <TabsTrigger value="px">PX</TabsTrigger>
+                              </TabsList>
+                            </Tabs>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="width" className="text-xs text-muted-foreground uppercase">Width ({newSize.unit})</Label>
+                                <Input 
+                                  id="width" 
+                                  type="number" 
+                                  step={newSize.unit === 'px' ? "1" : "0.01"}
+                                  value={newSize.width}
+                                  onChange={(e) => setNewSize({...newSize, width: Number(e.target.value)})}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="height" className="text-xs text-muted-foreground uppercase">Height ({newSize.unit})</Label>
+                                <Input 
+                                  id="height" 
+                                  type="number" 
+                                  step={newSize.unit === 'px' ? "1" : "0.01"}
+                                  value={newSize.height}
+                                  onChange={(e) => setNewSize({...newSize, height: Number(e.target.value)})}
+                                />
+                              </div>
                             </div>
                           </div>
                         </div>
