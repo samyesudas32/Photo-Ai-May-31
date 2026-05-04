@@ -120,10 +120,18 @@ const aiPhotoTransformationFlow = ai.defineFlow(
       }
       return { processedPhotoDataUri: mediaPart.url };
     } catch (error: any) {
-      // Handle quota and rate limit errors with a user-friendly message
-      if (error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED')) {
+      const errorMsg = error.message || '';
+      
+      // Specifically handle the "limit: 0" case which indicates regional/tier restrictions
+      if (errorMsg.includes('limit: 0')) {
+        throw new Error('This AI model is currently unavailable in your region or for your account tier. Please check regional availability at ai.google.dev.');
+      }
+
+      // Handle general quota and rate limit errors
+      if (errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED')) {
         throw new Error('AI processing quota exceeded. Please wait a moment and try again, or check your Gemini API plan limits at ai.google.dev.');
       }
+      
       throw error;
     }
   }
