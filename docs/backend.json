@@ -1,10 +1,11 @@
+
 {
   "entities": {
     "UserProfile": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "UserProfile",
       "type": "object",
-      "description": "Represents a user's profile within the PixelPass AI application, storing basic identification details.",
+      "description": "Represents a user's profile within the PixelPass AI application, storing basic identification details and preferences.",
       "properties": {
         "id": {
           "type": "string",
@@ -22,6 +23,10 @@
         "lastName": {
           "type": "string",
           "description": "The user's family name."
+        },
+        "lastSelectedBgColor": {
+          "type": "string",
+          "description": "The hex code of the last background color selected by the user in the editor."
         },
         "createdAt": {
           "type": "string",

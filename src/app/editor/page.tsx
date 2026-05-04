@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -14,8 +15,7 @@ import {
   Shirt,
   User,
   Briefcase,
-  Plus,
-  Palette
+  Plus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -43,6 +43,7 @@ import {
   useFirestore, 
   useAuth, 
   useCollection, 
+  useDoc,
   useMemoFirebase,
   setDocumentNonBlocking 
 } from "@/firebase";
@@ -105,6 +106,21 @@ export default function EditorPage() {
       initiateAnonymousSignIn(auth);
     }
   }, [user, auth]);
+
+  // Fetch User Profile to get preferences
+  const userProfileRef = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return doc(db, 'users', user.uid);
+  }, [db, user]);
+
+  const { data: profile } = useDoc<any>(userProfileRef);
+
+  // Sync background color from profile once loaded
+  useEffect(() => {
+    if (profile?.lastSelectedBgColor && selectedBgColor === '#FFFFFF') {
+      setSelectedBgColor(profile.lastSelectedBgColor);
+    }
+  }, [profile?.lastSelectedBgColor]);
 
   // Fetch Custom Sizes
   const customSizesQuery = useMemoFirebase(() => {
@@ -200,6 +216,16 @@ export default function EditorPage() {
     });
   };
 
+  const handleBgColorChange = (color: string) => {
+    setSelectedBgColor(color);
+    if (user && db) {
+      setDocumentNonBlocking(doc(db, 'users', user.uid), {
+        lastSelectedBgColor: color,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    }
+  };
+
   const handleProcess = async () => {
     if (!previewUrl) return;
 
@@ -254,7 +280,7 @@ export default function EditorPage() {
     setProgress(0);
     setSelectedStyle('none');
     setSelectedSizeId('standard');
-    setSelectedBgColor('#FFFFFF');
+    // We don't reset BgColor because user prefers their saved one
   };
 
   return (
@@ -418,7 +444,7 @@ export default function EditorPage() {
                       <Input 
                         type="color" 
                         value={selectedBgColor} 
-                        onChange={(e) => setSelectedBgColor(e.target.value)}
+                        onChange={(e) => handleBgColorChange(e.target.value)}
                         className="w-8 h-8 p-0 border-none bg-transparent cursor-pointer"
                         title="Choose custom color"
                       />
@@ -434,7 +460,7 @@ export default function EditorPage() {
                           "h-8 px-3 text-xs font-medium rounded-full",
                           selectedBgColor === color.value && "border-primary bg-primary/10 text-primary"
                         )}
-                        onClick={() => setSelectedBgColor(color.value)}
+                        onClick={() => handleBgColorChange(color.value)}
                         disabled={isProcessing}
                       >
                         <div 
