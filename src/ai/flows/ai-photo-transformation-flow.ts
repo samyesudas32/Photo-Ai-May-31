@@ -49,6 +49,12 @@ const passportPhotoPrompt = ai.definePrompt({
   model: 'googleai/gemini-2.5-flash-image',
   config: {
     responseModalities: ['IMAGE'],
+    safetySettings: [
+      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
+    ],
   },
   prompt: `Analyze the uploaded portrait image of a person and convert it into a professional passport-style photo.
 
@@ -104,16 +110,25 @@ const aiPhotoTransformationFlow = ai.defineFlow(
         'Seamlessly overlay a high-quality, dense black trench-style coat with a neatly structured collar and a hidden placket, layered over a simple dark turtleneck. The coat fits snugly and professionally.';
     }
 
-    const response = await passportPhotoPrompt({
-      ...input,
-      coatInstructions,
-    });
+    try {
+      const response = await passportPhotoPrompt({
+        ...input,
+        coatInstructions,
+      });
 
-    const mediaPart = response.media?.[0];
-    if (!mediaPart || !mediaPart.url) {
-      throw new Error('Failed to generate processed photo or no media part found.');
+      const mediaPart = response.media?.[0];
+      if (!mediaPart || !mediaPart.url) {
+        throw new Error('Failed to generate processed photo or no media part found.');
+      }
+      return { processedPhotoDataUri: mediaPart.url };
+    } catch (error: any) {
+      // Handle quota and rate limit errors with a user-friendly message
+      if (error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED')) {
+        throw new Error('AI processing quota exceeded for the free tier. Please wait a moment and try again, or check your Gemini API plan limits.');
+      }
+      // Re-throw other errors to be handled by the UI toast
+      throw error;
     }
-    return { processedPhotoDataUri: mediaPart.url };
   }
 );
 
