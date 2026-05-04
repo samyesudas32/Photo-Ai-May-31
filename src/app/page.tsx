@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowRight, CheckCircle2, UserCheck, Zap, Download, Layers, Camera } from 'lucide-react';
+import { ArrowRight, CheckCircle2, UserCheck, Zap, Download, Layers, Camera, Grid3X3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import Header from '@/components/Header';
@@ -34,7 +34,9 @@ export default function LandingPage() {
                     </Link>
                   </Button>
                   <Button size="lg" variant="outline" className="h-14 px-8 text-lg font-semibold bg-white/50 backdrop-blur" asChild>
-                    <Link href="/#how-it-works">Learn More</Link>
+                    <Link href="/grid-maker">
+                      <Grid3X3 className="mr-2 h-5 w-5" /> Try Grid Maker
+                    </Link>
                   </Button>
                 </div>
                 <div className="flex items-center gap-6 pt-4 text-sm font-medium text-muted-foreground">
@@ -98,8 +100,8 @@ export default function LandingPage() {
                 },
                 {
                   icon: CheckCircle2,
-                  title: "Skin Retouching",
-                  desc: "Subtle removal of temporary blemishes and shine without over-smoothing texture."
+                  title: "Grid Generator",
+                  desc: "Instantly create 2x4 grids for 4x6 inch photo paper at 300 DPI resolution."
                 },
                 {
                   icon: ArrowRight,
@@ -109,7 +111,7 @@ export default function LandingPage() {
                 {
                   icon: Download,
                   title: "Instant Format",
-                  desc: "Export in standard 2x2 inch formats ready for official submission."
+                  desc: "Export in standard PNG or PDF formats ready for professional printing."
                 }
               ].map((feature, i) => (
                 <Card key={i} className="border-none shadow-sm hover:shadow-md transition-shadow">

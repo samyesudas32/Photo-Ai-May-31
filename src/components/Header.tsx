@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ShieldCheck, Camera } from 'lucide-react';
+import { ShieldCheck, Camera, Grid3X3 } from 'lucide-react';
 
 export default function Header() {
   return (
@@ -12,8 +12,10 @@ export default function Header() {
           <span className="text-xl font-bold tracking-tight text-primary">PixelPass <span className="text-secondary">AI</span></span>
         </Link>
         <nav className="hidden md:flex items-center gap-8">
-          <Link href="/#how-it-works" className="text-sm font-medium hover:text-primary transition-colors">How it Works</Link>
-          <Link href="/#standards" className="text-sm font-medium hover:text-primary transition-colors">Passport Standards</Link>
+          <Link href="/editor" className="text-sm font-medium hover:text-primary transition-colors">AI Editor</Link>
+          <Link href="/grid-maker" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1.5">
+            <Grid3X3 className="h-4 w-4" /> Grid Maker
+          </Link>
           <div className="flex items-center gap-1.5 rounded-full bg-muted px-4 py-1.5 text-sm font-semibold text-muted-foreground border">
             <ShieldCheck className="h-4 w-4 text-green-500" />
             <span>Secure & Private</span>
