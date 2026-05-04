@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { 
   Upload, 
@@ -14,19 +14,53 @@ import {
   Trash2,
   Shirt,
   User,
-  Briefcase
+  Briefcase,
+  Plus,
+  Settings,
+  Scale
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
-import { transformPhoto, type AiPhotoTransformationInput } from "@/ai/flows/ai-photo-transformation-flow";
+import { transformPhoto } from "@/ai/flows/ai-photo-transformation-flow";
 import Link from "next/link";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger,
+  DialogFooter,
+  DialogDescription
+} from "@/components/ui/dialog";
+import { 
+  useUser, 
+  useFirestore, 
+  useAuth, 
+  useCollection, 
+  useMemoFirebase,
+  setDocumentNonBlocking 
+} from "@/firebase";
+import { collection, doc } from "firebase/firestore";
+import { initiateAnonymousSignIn } from "@/firebase/non-blocking-login";
 
 type CoatStyle = 'none' | 'suit' | 'blazer' | 'overcoat';
+
+interface CustomSize {
+  id: string;
+  name: string;
+  description: string;
+  widthCm: number;
+  heightCm: number;
+  userId: string;
+  createdAt: string;
+}
 
 export default function EditorPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -35,8 +69,38 @@ export default function EditorPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [selectedStyle, setSelectedStyle] = useState<CoatStyle>('none');
+  const [selectedSizeId, setSelectedSizeId] = useState<string>('standard');
+  const [isAddSizeOpen, setIsAddSizeOpen] = useState(false);
+  
+  // Custom Size Form State
+  const [newSize, setNewSize] = useState({
+    name: '',
+    description: '',
+    width: 5.1, // Default 2 inches in cm
+    height: 5.1
+  });
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  
+  const { user } = useUser();
+  const db = useFirestore();
+  const auth = useAuth();
+
+  // Handle Anonymous Login
+  useEffect(() => {
+    if (!user && auth) {
+      initiateAnonymousSignIn(auth);
+    }
+  }, [user, auth]);
+
+  // Fetch Custom Sizes
+  const customSizesQuery = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return collection(db, 'users', user.uid, 'custom_passport_sizes');
+  }, [db, user]);
+
+  const { data: customSizes } = useCollection<CustomSize>(customSizesQuery);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -59,6 +123,42 @@ export default function EditorPage() {
     }
   };
 
+  const handleSaveCustomSize = () => {
+    if (!user || !db) return;
+    if (!newSize.name || !newSize.width || !newSize.height) {
+      toast({
+        variant: "destructive",
+        title: "Missing Information",
+        description: "Please provide a name and dimensions.",
+      });
+      return;
+    }
+
+    const sizeId = doc(collection(db, 'users', user.uid, 'custom_passport_sizes')).id;
+    const sizeData: CustomSize = {
+      id: sizeId,
+      userId: user.uid,
+      name: newSize.name,
+      description: newSize.description,
+      widthCm: Number(newSize.width),
+      heightCm: Number(newSize.height),
+      createdAt: new Date().toISOString()
+    };
+
+    setDocumentNonBlocking(
+      doc(db, 'users', user.uid, 'custom_passport_sizes', sizeId),
+      sizeData,
+      { merge: true }
+    );
+
+    setIsAddSizeOpen(false);
+    setNewSize({ name: '', description: '', width: 5.1, height: 5.1 });
+    toast({
+      title: "Size Saved",
+      description: "Your custom passport size has been saved.",
+    });
+  };
+
   const handleProcess = async () => {
     if (!previewUrl) return;
 
@@ -66,7 +166,6 @@ export default function EditorPage() {
     setProgress(10);
     setProcessedUrl(null);
     
-    // Fake progress animation
     const progressInterval = setInterval(() => {
       setProgress(prev => (prev < 90 ? prev + 5 : prev));
     }, 1000);
@@ -112,6 +211,7 @@ export default function EditorPage() {
     setProcessedUrl(null);
     setProgress(0);
     setSelectedStyle('none');
+    setSelectedSizeId('standard');
   };
 
   return (
@@ -129,7 +229,6 @@ export default function EditorPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Left Column: Image Preview Area */}
           <div className="lg:col-span-8 space-y-6">
             <Card className="min-h-[500px] flex flex-col items-center justify-center border-dashed border-2 bg-white relative overflow-hidden group">
               {!previewUrl ? (
@@ -191,7 +290,7 @@ export default function EditorPage() {
                       </div>
                       <div className="text-center">
                         <p className="font-bold text-lg">Enhancing Image...</p>
-                        <p className="text-xs text-muted-foreground">Applying {selectedStyle !== 'none' ? selectedStyle : 'passport'} standards</p>
+                        <p className="text-xs text-muted-foreground">Applying selected standards</p>
                       </div>
                       <div className="w-48">
                         <Progress value={progress} className="h-1.5" />
@@ -224,7 +323,6 @@ export default function EditorPage() {
             </div>
           </div>
 
-          {/* Right Column: Controls and Settings */}
           <div className="lg:col-span-4 space-y-6">
             <Card className="bg-white border-none shadow-xl sticky top-24">
               <CardHeader>
@@ -265,17 +363,94 @@ export default function EditorPage() {
                 </div>
 
                 <div className="space-y-4 pt-4 border-t">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Target Format</span>
-                    <span className="font-semibold">Standard 2x2 inch</span>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Photo Size</Label>
+                    <Dialog open={isAddSizeOpen} onOpenChange={setIsAddSizeOpen}>
+                      <DialogTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-8 px-2 text-primary">
+                          <Plus className="h-4 w-4 mr-1" /> Custom Size
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Add Custom Passport Size</DialogTitle>
+                          <DialogDescription>Define specific dimensions for your photo requirements.</DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="size-name">Name</Label>
+                            <Input 
+                              id="size-name" 
+                              placeholder="e.g., Visa Application" 
+                              value={newSize.name}
+                              onChange={(e) => setNewSize({...newSize, name: e.target.value})}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="size-desc">Description</Label>
+                            <Textarea 
+                              id="size-desc" 
+                              placeholder="Describe the purpose of this size..." 
+                              value={newSize.description}
+                              onChange={(e) => setNewSize({...newSize, description: e.target.value})}
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="width">Width (cm)</Label>
+                              <Input 
+                                id="width" 
+                                type="number" 
+                                step="0.1"
+                                value={newSize.width}
+                                onChange={(e) => setNewSize({...newSize, width: Number(e.target.value)})}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="height">Height (cm)</Label>
+                              <Input 
+                                id="height" 
+                                type="number" 
+                                step="0.1"
+                                value={newSize.height}
+                                onChange={(e) => setNewSize({...newSize, height: Number(e.target.value)})}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setIsAddSizeOpen(false)}>Cancel</Button>
+                          <Button onClick={handleSaveCustomSize}>Save Size</Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
                   </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Background Color</span>
-                    <div className="flex items-center gap-2">
-                      <div className="h-4 w-4 rounded-full border bg-white shadow-sm"></div>
-                      <span className="font-semibold">Pure White</span>
+
+                  <RadioGroup 
+                    value={selectedSizeId} 
+                    onValueChange={setSelectedSizeId}
+                    className="space-y-2"
+                  >
+                    <div className="flex items-center space-x-2 rounded-lg border p-3 hover:bg-accent cursor-pointer">
+                      <RadioGroupItem value="standard" id="standard" />
+                      <Label htmlFor="standard" className="flex-1 cursor-pointer">
+                        <div className="font-semibold">Standard Passport</div>
+                        <div className="text-[10px] text-muted-foreground italic">Official 2x2 inch (5.1 x 5.1 cm)</div>
+                      </Label>
                     </div>
-                  </div>
+
+                    {customSizes?.map((size) => (
+                      <div key={size.id} className="flex items-center space-x-2 rounded-lg border p-3 hover:bg-accent cursor-pointer">
+                        <RadioGroupItem value={size.id} id={size.id} />
+                        <Label htmlFor={size.id} className="flex-1 cursor-pointer">
+                          <div className="font-semibold">{size.name}</div>
+                          <div className="text-[10px] text-muted-foreground italic">
+                            {size.widthCm} x {size.heightCm} cm • {size.description}
+                          </div>
+                        </Label>
+                      </div>
+                    ))}
+                  </RadioGroup>
                 </div>
 
                 <div className="pt-6 border-t space-y-3">
@@ -316,24 +491,6 @@ export default function EditorPage() {
                     </Button>
                   )}
                 </div>
-
-                {!processedUrl && !isProcessing && (
-                  <div className="mt-4 p-4 rounded-lg bg-blue-50 border border-blue-100 flex gap-3">
-                    <AlertCircle className="h-5 w-5 text-blue-500 shrink-0" />
-                    <p className="text-xs text-blue-700 leading-relaxed">
-                      Choose a clothing style above if you want the AI to professionally dress the subject.
-                    </p>
-                  </div>
-                )}
-                
-                {processedUrl && (
-                  <div className="mt-4 p-4 rounded-lg bg-green-50 border border-green-100 flex gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
-                    <p className="text-xs text-green-700 leading-relaxed">
-                      Your photo is ready! It has been centered, balanced, and professionally dressed.
-                    </p>
-                  </div>
-                )}
               </CardContent>
             </Card>
           </div>
