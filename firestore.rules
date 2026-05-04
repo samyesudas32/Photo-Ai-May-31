@@ -1,0 +1,111 @@
+rules_version = '2';
+
+/**
+ * PixelPass AI Security Rules
+ *
+ * Core Philosophy:
+ * This ruleset implements a strict user-ownership model for all personal and generated data, 
+ * while providing global read access to official passport requirements. It is designed 
+ * for a prototyping environment, prioritizing robust authorization over strict schema 
+ * validation to allow for rapid iteration.
+ *
+ * Data Structure:
+ * - /users/{userId}: Root profile for each user.
+ * - /users/{userId}/custom_passport_sizes/{id}: User-defined photo dimensions.
+ * - /users/{userId}/processed_images/{id}: History of AI-processed passport photos.
+ * - /country_passport_requirements/{id}: Global, read-only official specifications.
+ *
+ * Key Security Decisions:
+ * 1. Authorization Independence: Every user-owned document contains a denormalized 'userId' 
+ *    field. Rules verify that this field matches the authenticated user's UID and the 
+ *    path parameter, ensuring zero-latency authorization without extra lookups.
+ * 2. Structural Segregation: User data is nested under unique UID paths, preventing 
+ *    cross-user data leakage and simplifying list operations.
+ * 3. Administrative Control: Global requirement data is read-only for users; modification 
+ *    is restricted to backend/admin processes.
+ */
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Helper Functions ---
+
+    /**
+     * @description Checks if the request is from a signed-in user.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the authenticated user matches the provided userId.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the user is the owner and the document already exists.
+     * Used for update and delete operations to ensure state change validity.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    // --- Collection Rules ---
+
+    /**
+     * @description Rules for the UserProfile collection.
+     * @path /users/{userId}
+     * @allow Authenticated user (get, list, create, update) where UID matches path.
+     * @deny Any user attempting to access or modify a different user's profile.
+     * @principle Ownership and Self-Creation (P3.1, P3.4).
+     */
+    match /users/{userId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
+
+      /**
+       * @description Rules for user-defined custom passport sizes.
+       * @path /users/{userId}/custom_passport_sizes/{customPassportSizeId}
+       * @allow Owner (get, list, create, update, delete).
+       * @deny Unauthenticated users or users attempting to access another's sizes.
+       * @principle Relational Integrity and Ownership (P3.1, P5).
+       */
+      match /custom_passport_sizes/{customPassportSizeId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && request.resource.data.userId == userId;
+        allow update: if isOwner(userId) && request.resource.data.userId == resource.data.userId;
+        allow delete: if isExistingOwner(userId);
+      }
+
+      /**
+       * @description Rules for images processed by the AI.
+       * @path /users/{userId}/processed_images/{processedImageId}
+       * @allow Owner (get, list, create, update, delete).
+       * @deny Any access by non-owners.
+       * @principle Strict user-ownership model (P3.1).
+       */
+      match /processed_images/{processedImageId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && request.resource.data.userId == userId;
+        allow update: if isOwner(userId) && request.resource.data.userId == resource.data.userId;
+        allow delete: if isExistingOwner(userId);
+      }
+    }
+
+    /**
+     * @description Rules for official country passport requirements.
+     * @path /country_passport_requirements/{countryCode}
+     * @allow Any signed-in user (get, list).
+     * @deny Any write operations from the client.
+     * @principle Public Read with Restricted Writes (P3.5).
+     */
+    match /country_passport_requirements/{countryCode} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if false; // Admin-only writes (not supported via client SDK)
+    }
+  }
+}

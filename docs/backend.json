@@ -1,0 +1,325 @@
+{
+  "entities": {
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Represents a user's profile within the PixelPass AI application, storing basic identification details.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UserProfile entity."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address, primarily used for identification within the application (not for authentication).",
+          "format": "email"
+        },
+        "firstName": {
+          "type": "string",
+          "description": "The user's given name."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "The user's family name."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "The timestamp when the user profile was first created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "The timestamp when the user profile was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CountryPassportRequirement": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CountryPassportRequirement",
+      "type": "object",
+      "description": "Defines the official passport photo requirements for a specific country, enabling auto-detection features.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the CountryPassportRequirement entity."
+        },
+        "countryCode": {
+          "type": "string",
+          "description": "The ISO 3166-1 alpha-2 country code (e.g., 'US' for United States)."
+        },
+        "countryName": {
+          "type": "string",
+          "description": "The full name of the country (e.g., 'United States', 'United Kingdom')."
+        },
+        "photoWidthCm": {
+          "type": "number",
+          "description": "The standard required width of the passport photo in centimeters."
+        },
+        "photoHeightCm": {
+          "type": "number",
+          "description": "The standard required height of the passport photo in centimeters."
+        },
+        "headSizeMinCm": {
+          "type": "number",
+          "description": "The minimum required head size (e.g., from chin to crown) in centimeters."
+        },
+        "headSizeMaxCm": {
+          "type": "number",
+          "description": "The maximum required head size (e.g., from chin to crown) in centimeters."
+        },
+        "eyeLineMinCm": {
+          "type": "number",
+          "description": "The minimum required distance from the bottom of the photo to the eye line in centimeters."
+        },
+        "eyeLineMaxCm": {
+          "type": "number",
+          "description": "The maximum required distance from the bottom of the photo to the eye line in centimeters."
+        },
+        "backgroundRequirements": {
+          "type": "string",
+          "description": "A description of the specific background requirements (e.g., 'pure white, no shadows, uniform lighting')."
+        },
+        "expressionRequirements": {
+          "type": "string",
+          "description": "A description of the required facial expression (e.g., 'neutral, eyes open, mouth closed')."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Any additional specific rules or guidelines for the country's passport photo, such as accessory restrictions."
+        },
+        "lastUpdatedBySource": {
+          "type": "string",
+          "description": "A timestamp or string indicating when these requirements were last verified or updated from an official source.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "countryCode",
+        "countryName",
+        "photoWidthCm",
+        "photoHeightCm",
+        "backgroundRequirements",
+        "expressionRequirements",
+        "lastUpdatedBySource"
+      ]
+    },
+    "CustomPassportSize": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CustomPassportSize",
+      "type": "object",
+      "description": "Allows users to define, save, and manage their own custom passport photo sizes with associated descriptions.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the CustomPassportSize entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the UserProfile who created or owns this custom size. (Relationship: UserProfile 1:N CustomPassportSize)"
+        },
+        "name": {
+          "type": "string",
+          "description": "A user-friendly name given to this custom size (e.g., 'My 3x4 ID Photo', 'Visa Application Size')."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed explanation or purpose of this specific custom passport photo size."
+        },
+        "widthCm": {
+          "type": "number",
+          "description": "The custom width of the passport photo in centimeters."
+        },
+        "heightCm": {
+          "type": "number",
+          "description": "The custom height of the passport photo in centimeters."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "The timestamp when this custom size definition was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "The timestamp when this custom size definition was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "name",
+        "description",
+        "widthCm",
+        "heightCm",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ProcessedImage": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ProcessedImage",
+      "type": "object",
+      "description": "Represents an image that has been processed by PixelPass AI, tracking its original state, processing status, and final output.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ProcessedImage entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the UserProfile who uploaded the original image and initiated processing. (Relationship: UserProfile 1:N ProcessedImage)"
+        },
+        "originalImageUrl": {
+          "type": "string",
+          "description": "The URL or path to the original image uploaded by the user.",
+          "format": "uri"
+        },
+        "processedImageUrl": {
+          "type": "string",
+          "description": "The URL or path to the final, processed passport-style image.",
+          "format": "uri"
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the image processing job (e.g., 'pending', 'processing', 'completed', 'failed')."
+        },
+        "outputWidthCm": {
+          "type": "number",
+          "description": "The final width of the processed image in centimeters, based on selected requirements."
+        },
+        "outputHeightCm": {
+          "type": "number",
+          "description": "The final height of the processed image in centimeters, based on selected requirements."
+        },
+        "countryRequirementId": {
+          "type": "string",
+          "description": "Optional reference to a CountryPassportRequirement if a standard country format was applied. (Relationship: CountryPassportRequirement 1:N ProcessedImage)"
+        },
+        "customPassportSizeId": {
+          "type": "string",
+          "description": "Optional reference to a CustomPassportSize if a custom size was applied. (Relationship: CustomPassportSize 1:N ProcessedImage)"
+        },
+        "complianceScore": {
+          "type": "number",
+          "description": "An AI-generated score indicating how compliant the processed image is with passport standards (0-100)."
+        },
+        "processingDetails": {
+          "type": "string",
+          "description": "A field to store additional, potentially technical, details about the image processing steps or results, in a serialized format (e.g., JSON string)."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "The timestamp when the image processing request was initiated.",
+          "format": "date-time"
+        },
+        "completedAt": {
+          "type": "string",
+          "description": "The timestamp when the image processing was completed (or marked as failed).",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "originalImageUrl",
+        "processedImageUrl",
+        "status",
+        "outputWidthCm",
+        "outputHeightCm",
+        "createdAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "Stores individual user profiles. Access is restricted to the owner matching 'userId' from the path. The document's 'id' field is expected to match the 'userId' path parameter and 'request.auth.uid'.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user, corresponding to Firebase Authentication UID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/custom_passport_sizes/{customPassportSizeId}",
+        "definition": {
+          "entityName": "CustomPassportSize",
+          "schema": {
+            "$ref": "#/backend/entities/CustomPassportSize"
+          },
+          "description": "Stores user-defined custom passport photo sizes. Access is restricted to the owner ('userId' from the path). Includes denormalized 'userId' field for authorization independence, which must match the path parameter and 'request.auth.uid'.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who owns this custom passport size."
+            },
+            {
+              "name": "customPassportSizeId",
+              "description": "The unique identifier for a specific custom passport size definition."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/processed_images/{processedImageId}",
+        "definition": {
+          "entityName": "ProcessedImage",
+          "schema": {
+            "$ref": "#/backend/entities/ProcessedImage"
+          },
+          "description": "Stores records of images processed by the AI, including original and processed URLs, status, and dimensions. Access is restricted to the owner ('userId' from the path). Includes denormalized 'userId' field for authorization independence, which must match the path parameter and 'request.auth.uid'.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who owns this processed image record."
+            },
+            {
+              "name": "processedImageId",
+              "description": "The unique identifier for a specific processed image record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/country_passport_requirements/{countryCode}",
+        "definition": {
+          "entityName": "CountryPassportRequirement",
+          "schema": {
+            "$ref": "#/backend/entities/CountryPassportRequirement"
+          },
+          "description": "Stores official passport photo requirements for various countries. This is global, read-only data for authenticated users. Writes would be restricted to administrators. The 'countryCode' field in the document matches the path parameter.",
+          "params": [
+            {
+              "name": "countryCode",
+              "description": "The ISO 3166-1 alpha-2 country code (e.g., 'US'), used as the document ID."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The recommended Firestore structure prioritizes Authorization Independence and Structural Segregation to ensure robust, debuggable security rules and efficient query performance.User-specific, private data (`UserProfile`, `CustomPassportSize`, `ProcessedImage`) is organized under `/users/{userId}` paths. This leverages Firestore's hierarchical nature to automatically scope data ownership to the authenticated user (`request.auth.uid`).The `CustomPassportSize` and `ProcessedImage` entities, which are logically owned by a `UserProfile`, are stored as subcollections of their respective user's profile: `/users/{userId}/custom_passport_sizes/{customPassportSizeId}` and `/users/{userId}/processed_images/{processedImageId}`. This adheres to **Access Modeling Principle C2 & C3**.Authorization Independence (Principle A) is achieved by mandating that every document in these subcollections (`CustomPassportSize` and `ProcessedImage`) includes a `userId` field. This `userId` field within the document *must* match the `{userId}` wildcard in its path and, consequently, `request.auth.uid`. This denormalization means that Firestore security rules can determine ownership and grant access by simply comparing `request.auth.uid` with the `{userId}` in the path and `resource.data.userId` without needing to perform `get()` operations on parent documents. This allows for atomic write operations and simplifies rule logic.For example, a rule for `custom_passport_sizes` would be:\n`match /users/{userId}/custom_passport_sizes/{customPassportSizeId} { allow read, write: if request.auth.uid == userId && request.resource.data.userId == userId; }`The `CountryPassportRequirement` entity, representing global, read-only (for users) configuration data, is placed in a top-level collection: `/country_passport_requirements/{countryCode}`. This adheres to **Structural Segregation Principle B** by separating globally accessible data from user-private data. This collection's security posture is homogeneous (read-only for all authenticated users, admin-only for writes), making rules straightforward.Query Against Public Data (QAPs) is fully supported. For user-owned data, `list` operations implicitly filter by `userId` because a user can only query their own `/users/{uid}/...` path. For `CountryPassportRequirement`, all authenticated users can `list` the entire collection of official requirements, which is the intended behavior without requiring filtering by user-specific attributes.The user's request to "
+  }
+}
