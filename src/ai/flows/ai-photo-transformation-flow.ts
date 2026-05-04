@@ -1,6 +1,7 @@
 'use server';
 /**
- * @fileOverview A Genkit flow for transforming an uploaded portrait photo into a passport-compliant photo.
+ * @fileOverview A Genkit flow for transforming an uploaded portrait photo into a passport-compliant photo,
+ * with optional professional clothing overlays.
  *
  * - transformPhoto - A function that handles the AI photo transformation process.
  * - AiPhotoTransformationInput - The input type for the transformPhoto function.
@@ -16,6 +17,10 @@ const AiPhotoTransformationInputSchema = z.object({
     .describe(
       "A portrait photo as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
     ),
+  coatStyle: z
+    .enum(['none', 'suit', 'blazer', 'overcoat'])
+    .optional()
+    .describe('The professional clothing style to overlay on the subject.'),
 });
 export type AiPhotoTransformationInput = z.infer<typeof AiPhotoTransformationInputSchema>;
 
@@ -30,15 +35,48 @@ export type AiPhotoTransformationOutput = z.infer<typeof AiPhotoTransformationOu
 
 const passportPhotoPrompt = ai.definePrompt({
   name: 'passportPhotoPrompt',
-  input: { schema: AiPhotoTransformationInputSchema },
-  // The output schema here primarily serves as documentation for the expected output.
-  // For image generation, the actual image data will be in the `media` array of the response.
+  input: {
+    schema: AiPhotoTransformationInputSchema.extend({
+      coatInstructions: z.string().optional(),
+    }),
+  },
   output: { schema: AiPhotoTransformationOutputSchema },
   model: 'googleai/gemini-2.5-flash-image',
   config: {
     responseModalities: ['IMAGE'],
   },
-  prompt: `Analyze the uploaded portrait image of a person and convert it into a professional passport-style photo.\n\nRequirements:\n- Detect and center the face with proper alignment (eyes level, head straight).\n- Preserve the subject's original facial expression, identity, and all natural features exactly. Do NOT alter face shape, eyes, nose, or mouth.\n- Replace the background with a clean, pure white background (#FFFFFF), evenly lit with no shadows or gradients.\n- Enhance image quality:\n  - Reduce noise and blur from low-quality uploads\n  - Sharpen facial details naturally\n  - Improve lighting balance and correct exposure\n  - Remove harsh shadows and overexposed highlights\n- Apply subtle, natural skin retouching:\n  - Remove temporary blemishes, glare, or shine\n  - Keep natural skin texture (avoid over-smoothing)\n- Upscale the image to high resolution (target: 4K quality) while maintaining realism.\n- Ensure color accuracy and natural skin tones.\n- Format the image to passport standards:\n  - Head centered and properly sized\n  - Neutral background\n  - No accessories or obstructions unless culturally required\n- Output a clean, professional, print-ready passport photo.\n\nImportant:\n- Do NOT stylize, beautify excessively, or modify identity.\n- The final image must look realistic and compliant with official passport photo guidelines.\n\nInput Photo: {{media url=photoDataUri}}`,
+  prompt: `Analyze the uploaded portrait image of a person and convert it into a professional passport-style photo.
+
+Requirements:
+- Detect and center the face with proper alignment (eyes level, head straight).
+- Preserve the subject's original facial expression, identity, and all natural features exactly. Do NOT alter face shape, eyes, nose, or mouth.
+- Replace the background with a clean, pure white background (#FFFFFF), evenly lit with no shadows or gradients.
+
+{{#if coatInstructions}}
+- CLOTHING TRANSFORMATION: {{{coatInstructions}}}
+{{/if}}
+
+- Enhance image quality:
+  - Reduce noise and blur from low-quality uploads
+  - Sharpen facial details naturally
+  - Improve lighting balance and correct exposure
+  - Remove harsh shadows and overexposed highlights
+- Apply subtle, natural skin retouching:
+  - Remove temporary blemishes, glare, or shine
+  - Keep natural skin texture (avoid over-smoothing)
+- Upscale the image to high resolution (target: 4K quality) while maintaining realism.
+- Ensure color accuracy and natural skin tones.
+- Format the image to passport standards:
+  - Head centered and properly sized
+  - Neutral background
+  - No accessories or obstructions unless culturally required
+- Output a clean, professional, print-ready passport photo.
+
+Important:
+- Do NOT stylize, beautify excessively, or modify identity.
+- The final image must look realistic and compliant with official passport photo guidelines.
+
+Input Photo: {{media url=photoDataUri}}`,
 });
 
 const aiPhotoTransformationFlow = ai.defineFlow(
@@ -48,7 +86,24 @@ const aiPhotoTransformationFlow = ai.defineFlow(
     outputSchema: AiPhotoTransformationOutputSchema,
   },
   async (input) => {
-    const response = await passportPhotoPrompt(input);
+    let coatInstructions = '';
+
+    if (input.coatStyle === 'suit') {
+      coatInstructions =
+        'Seamlessly overlay a dark, professionally tailored navy blue wool blend suit jacket with subtle lapels, worn over a crisp white collared shirt and a simple, dark tie. The jacket fits perfectly and is neatly pressed.';
+    } else if (input.coatStyle === 'blazer') {
+      coatInstructions =
+        'Seamlessly overlay a well-structured, dark charcoal grey textured blazer over a simple, elegant dark crewneck top. The blazer has defined shoulders and neat lapels, sitting flat against the torso.';
+    } else if (input.coatStyle === 'overcoat') {
+      coatInstructions =
+        'Seamlessly overlay a high-quality, dense black trench-style coat with a neatly structured collar and a hidden placket, layered over a simple dark turtleneck. The coat fits snugly and professionally.';
+    }
+
+    const response = await passportPhotoPrompt({
+      ...input,
+      coatInstructions,
+    });
+
     const mediaPart = response.media?.[0];
     if (!mediaPart || !mediaPart.url) {
       throw new Error('Failed to generate processed photo or no media part found.');

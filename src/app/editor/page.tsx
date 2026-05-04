@@ -11,15 +11,22 @@ import {
   ArrowLeft,
   Camera,
   Maximize2,
-  Trash2
+  Trash2,
+  Shirt,
+  User,
+  Briefcase
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
-import { transformPhoto } from "@/ai/flows/ai-photo-transformation-flow";
+import { transformPhoto, type AiPhotoTransformationInput } from "@/ai/flows/ai-photo-transformation-flow";
 import Link from "next/link";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+
+type CoatStyle = 'none' | 'suit' | 'blazer' | 'overcoat';
 
 export default function EditorPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -27,6 +34,7 @@ export default function EditorPage() {
   const [processedUrl, setProcessedUrl] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [selectedStyle, setSelectedStyle] = useState<CoatStyle>('none');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -56,14 +64,18 @@ export default function EditorPage() {
 
     setIsProcessing(true);
     setProgress(10);
+    setProcessedUrl(null);
     
     // Fake progress animation
     const progressInterval = setInterval(() => {
-      setProgress(prev => (prev < 90 ? prev + 10 : prev));
-    }, 800);
+      setProgress(prev => (prev < 90 ? prev + 5 : prev));
+    }, 1000);
 
     try {
-      const result = await transformPhoto({ photoDataUri: previewUrl });
+      const result = await transformPhoto({ 
+        photoDataUri: previewUrl,
+        coatStyle: selectedStyle !== 'none' ? selectedStyle : undefined
+      });
       clearInterval(progressInterval);
       setProgress(100);
       setProcessedUrl(result.processedPhotoDataUri);
@@ -88,7 +100,7 @@ export default function EditorPage() {
     if (!processedUrl) return;
     const link = document.createElement("a");
     link.href = processedUrl;
-    link.download = "pixelpass-passport-photo.png";
+    link.download = `pixelpass-passport-${selectedStyle}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -99,6 +111,7 @@ export default function EditorPage() {
     setPreviewUrl(null);
     setProcessedUrl(null);
     setProgress(0);
+    setSelectedStyle('none');
   };
 
   return (
@@ -178,7 +191,7 @@ export default function EditorPage() {
                       </div>
                       <div className="text-center">
                         <p className="font-bold text-lg">Enhancing Image...</p>
-                        <p className="text-xs text-muted-foreground">Aligning face & upscaling to 4K</p>
+                        <p className="text-xs text-muted-foreground">Applying {selectedStyle !== 'none' ? selectedStyle : 'passport'} standards</p>
                       </div>
                       <div className="w-48">
                         <Progress value={progress} className="h-1.5" />
@@ -220,6 +233,38 @@ export default function EditorPage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-4">
+                  <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Clothing Style</Label>
+                  <RadioGroup 
+                    value={selectedStyle} 
+                    onValueChange={(val) => setSelectedStyle(val as CoatStyle)}
+                    className="grid grid-cols-2 gap-3"
+                    disabled={isProcessing}
+                  >
+                    {[
+                      { id: 'none', label: 'Original', icon: User },
+                      { id: 'suit', label: 'Classic Suit', icon: Briefcase },
+                      { id: 'blazer', label: 'Tailored Blazer', icon: Shirt },
+                      { id: 'overcoat', label: 'Overcoat', icon: Shirt },
+                    ].map((style) => (
+                      <div key={style.id} className="relative">
+                        <RadioGroupItem
+                          value={style.id}
+                          id={style.id}
+                          className="peer sr-only"
+                        />
+                        <Label
+                          htmlFor={style.id}
+                          className="flex flex-col items-center justify-center rounded-lg border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer transition-all"
+                        >
+                          <style.icon className="mb-2 h-5 w-5" />
+                          <span className="text-[10px] font-bold">{style.label}</span>
+                        </Label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                </div>
+
+                <div className="space-y-4 pt-4 border-t">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Target Format</span>
                     <span className="font-semibold">Standard 2x2 inch</span>
@@ -230,10 +275,6 @@ export default function EditorPage() {
                       <div className="h-4 w-4 rounded-full border bg-white shadow-sm"></div>
                       <span className="font-semibold">Pure White</span>
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Skin Retouching</span>
-                    <span className="text-secondary font-semibold">Subtle (AI Optimized)</span>
                   </div>
                 </div>
 
@@ -247,12 +288,22 @@ export default function EditorPage() {
                       {isProcessing ? "Processing..." : "Generate Passport Photo"}
                     </Button>
                   ) : (
-                    <Button 
-                      className="w-full h-12 text-lg font-bold bg-green-600 hover:bg-green-700" 
-                      onClick={handleDownload}
-                    >
-                      <Download className="mr-2 h-5 w-5" /> Download (Print Ready)
-                    </Button>
+                    <div className="space-y-3">
+                      <Button 
+                        className="w-full h-12 text-lg font-bold bg-green-600 hover:bg-green-700" 
+                        onClick={handleDownload}
+                      >
+                        <Download className="mr-2 h-5 w-5" /> Download (Print Ready)
+                      </Button>
+                      <Button 
+                        variant="outline"
+                        className="w-full h-12 text-lg font-bold" 
+                        onClick={handleProcess}
+                        disabled={isProcessing}
+                      >
+                        <RefreshCw className={`mr-2 h-5 w-5 ${isProcessing ? 'animate-spin' : ''}`} /> Regenerate
+                      </Button>
+                    </div>
                   )}
                   
                   {previewUrl && !isProcessing && (
@@ -270,7 +321,7 @@ export default function EditorPage() {
                   <div className="mt-4 p-4 rounded-lg bg-blue-50 border border-blue-100 flex gap-3">
                     <AlertCircle className="h-5 w-5 text-blue-500 shrink-0" />
                     <p className="text-xs text-blue-700 leading-relaxed">
-                      For best results, upload a photo with even lighting and a neutral expression. Our AI will handle the rest.
+                      Choose a clothing style above if you want the AI to professionally dress the subject.
                     </p>
                   </div>
                 )}
@@ -279,30 +330,10 @@ export default function EditorPage() {
                   <div className="mt-4 p-4 rounded-lg bg-green-50 border border-green-100 flex gap-3">
                     <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
                     <p className="text-xs text-green-700 leading-relaxed">
-                      Your photo is ready! It has been centered, balanced, and upscaled to 4K resolution.
+                      Your photo is ready! It has been centered, balanced, and professionally dressed.
                     </p>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-            
-            <Card className="bg-white/50 border-none">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Compliance Checklist</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {[
-                  "Head Centered and Sized Correctly",
-                  "Pure White Background (#FFFFFF)",
-                  "Neutral Facial Expression",
-                  "No Harsh Shadows",
-                  "High Resolution (Print Ready)"
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs">
-                    <CheckCircle2 className={`h-3 w-3 ${processedUrl ? "text-green-500" : "text-muted"}`} />
-                    <span className={processedUrl ? "text-foreground font-medium" : "text-muted-foreground"}>{item}</span>
-                  </div>
-                ))}
               </CardContent>
             </Card>
           </div>
