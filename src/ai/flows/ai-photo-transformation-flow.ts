@@ -44,10 +44,10 @@ const passportPhotoPrompt = ai.definePrompt({
       coatInstructions: z.string().optional(),
     }),
   },
-  output: { schema: AiPhotoTransformationOutputSchema },
   model: 'googleai/gemini-2.5-flash-image',
   config: {
-    responseModalities: ['IMAGE'],
+    // IMPORTANT: Both TEXT and IMAGE are required for the gemini-2.5-flash-image model
+    responseModalities: ['TEXT', 'IMAGE'],
     safetySettings: [
       { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
       { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
@@ -114,17 +114,19 @@ const aiPhotoTransformationFlow = ai.defineFlow(
         coatInstructions,
       });
 
+      // Extract the generated image from the media part of the response
       const mediaPart = response.media?.[0];
       if (!mediaPart || !mediaPart.url) {
-        throw new Error('Failed to generate processed photo or no media part found.');
+        throw new Error('AI failed to generate the processed image. Please try again with a different photo.');
       }
+      
       return { processedPhotoDataUri: mediaPart.url };
     } catch (error: any) {
       const errorMsg = error.message || '';
       
       // Specifically handle the "limit: 0" case which indicates regional/tier restrictions
       if (errorMsg.includes('limit: 0')) {
-        throw new Error('This AI model is currently unavailable in your region or for your account tier. Please check regional availability at ai.google.dev.');
+        throw new Error('This AI model is restricted in your region (limit: 0). If you are in the EU/UK, some experimental Gemini features may be unavailable. Try checking your Gemini API console at ai.google.dev or ensure your project has high-tier access enabled.');
       }
 
       // Handle general quota and rate limit errors
