@@ -120,15 +120,7 @@ export default function EditorPage() {
     if (profile?.lastSelectedBgColor && selectedBgColor === '#FFFFFF') {
       setSelectedBgColor(profile.lastSelectedBgColor);
     }
-  }, [profile?.lastSelectedBgColor]);
-
-  // Fetch Custom Sizes
-  const customSizesQuery = useMemoFirebase(() => {
-    if (!db || !user) return null;
-    return collection(db, 'users', user.uid, 'custom_passport_sizes');
-  }, [db, user]);
-
-  const { data: customSizes } = useCollection<CustomSize>(customSizesQuery);
+  }, [profile?.lastSelectedBgColor, selectedBgColor]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -219,12 +211,26 @@ export default function EditorPage() {
   const handleBgColorChange = (color: string) => {
     setSelectedBgColor(color);
     if (user && db) {
+      // We must include the 'id' field to satisfy the security rules
+      // which check for request.resource.data.id == userId (on create)
+      // or request.resource.data.id == resource.data.id (on update)
       setDocumentNonBlocking(doc(db, 'users', user.uid), {
+        id: user.uid,
+        email: user.email || 'anonymous@pixelpass.ai',
         lastSelectedBgColor: color,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        createdAt: profile?.createdAt || new Date().toISOString()
       }, { merge: true });
     }
   };
+
+  // Fetch Custom Sizes
+  const customSizesQuery = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return collection(db, 'users', user.uid, 'custom_passport_sizes');
+  }, [db, user]);
+
+  const { data: customSizes } = useCollection<CustomSize>(customSizesQuery);
 
   const handleProcess = async () => {
     if (!previewUrl) return;
@@ -280,7 +286,6 @@ export default function EditorPage() {
     setProgress(0);
     setSelectedStyle('none');
     setSelectedSizeId('standard');
-    // We don't reset BgColor because user prefers their saved one
   };
 
   return (
