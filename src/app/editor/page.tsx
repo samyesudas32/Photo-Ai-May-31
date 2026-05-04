@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -120,7 +119,7 @@ export default function EditorPage() {
     if (profile?.lastSelectedBgColor && selectedBgColor === '#FFFFFF') {
       setSelectedBgColor(profile.lastSelectedBgColor);
     }
-  }, [profile?.lastSelectedBgColor, selectedBgColor]);
+  }, [profile?.lastSelectedBgColor]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -211,6 +210,7 @@ export default function EditorPage() {
   const handleBgColorChange = (color: string) => {
     setSelectedBgColor(color);
     if (user && db) {
+      // CRITICAL: Always include 'id' field in user profile updates to satisfy security rules
       setDocumentNonBlocking(doc(db, 'users', user.uid), {
         id: user.uid,
         email: user.email || 'anonymous@pixelpass.ai',

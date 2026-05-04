@@ -57,6 +57,7 @@ export default function LandingPage() {
                         height={800}
                         className="object-cover w-full h-[400px]"
                         data-ai-hint="portrait woman"
+                        priority
                       />
                     ) : (
                       <div className="w-full h-[400px] bg-muted flex items-center justify-center">

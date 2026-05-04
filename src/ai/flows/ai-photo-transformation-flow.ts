@@ -45,7 +45,7 @@ const passportPhotoPrompt = ai.definePrompt({
   },
   model: 'googleai/gemini-2.5-flash-image',
   config: {
-    // IMPORTANT: Both TEXT and IMAGE are required for the gemini-2.5-flash-image model
+    // IMPORTANT: Both TEXT and IMAGE are required for the gemini-2.5-flash-image model to function as a transformer
     responseModalities: ['TEXT', 'IMAGE'],
     safetySettings: [
       { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
