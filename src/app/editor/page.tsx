@@ -7,7 +7,6 @@ import {
   RefreshCw, 
   Download, 
   CheckCircle2, 
-  AlertCircle, 
   ArrowLeft,
   Camera,
   Maximize2,
@@ -16,9 +15,7 @@ import {
   User,
   Briefcase,
   Plus,
-  Settings,
-  Scale,
-  Ruler
+  Palette
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -51,6 +48,7 @@ import {
 } from "@/firebase";
 import { collection, doc } from "firebase/firestore";
 import { initiateAnonymousSignIn } from "@/firebase/non-blocking-login";
+import { cn } from "@/lib/utils";
 
 type CoatStyle = 'none' | 'suit' | 'blazer' | 'overcoat';
 type Unit = 'cm' | 'in' | 'px';
@@ -67,6 +65,13 @@ interface CustomSize {
   createdAt: string;
 }
 
+const PRESET_BG_COLORS = [
+  { name: 'White', value: '#FFFFFF' },
+  { name: 'Off-white', value: '#F5F5F5' },
+  { name: 'Light Blue', value: '#ADD8E6' },
+  { name: 'Light Grey', value: '#D3D3D3' },
+];
+
 export default function EditorPage() {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -75,6 +80,7 @@ export default function EditorPage() {
   const [progress, setProgress] = useState(0);
   const [selectedStyle, setSelectedStyle] = useState<CoatStyle>('none');
   const [selectedSizeId, setSelectedSizeId] = useState<string>('standard');
+  const [selectedBgColor, setSelectedBgColor] = useState<string>('#FFFFFF');
   const [isAddSizeOpen, setIsAddSizeOpen] = useState(false);
   
   // Custom Size Form State
@@ -208,7 +214,8 @@ export default function EditorPage() {
     try {
       const result = await transformPhoto({ 
         photoDataUri: previewUrl,
-        coatStyle: selectedStyle !== 'none' ? selectedStyle : undefined
+        coatStyle: selectedStyle !== 'none' ? selectedStyle : undefined,
+        backgroundColor: selectedBgColor
       });
       clearInterval(progressInterval);
       setProgress(100);
@@ -247,6 +254,7 @@ export default function EditorPage() {
     setProgress(0);
     setSelectedStyle('none');
     setSelectedSizeId('standard');
+    setSelectedBgColor('#FFFFFF');
   };
 
   return (
@@ -365,6 +373,7 @@ export default function EditorPage() {
                 <CardDescription>Configure your passport photo parameters.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                {/* Clothing Style */}
                 <div className="space-y-4">
                   <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Clothing Style</Label>
                   <RadioGroup 
@@ -397,6 +406,48 @@ export default function EditorPage() {
                   </RadioGroup>
                 </div>
 
+                {/* Background Color */}
+                <div className="space-y-4 pt-4 border-t">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Background Color</Label>
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-6 h-6 rounded-full border shadow-sm"
+                        style={{ backgroundColor: selectedBgColor }}
+                      />
+                      <Input 
+                        type="color" 
+                        value={selectedBgColor} 
+                        onChange={(e) => setSelectedBgColor(e.target.value)}
+                        className="w-8 h-8 p-0 border-none bg-transparent cursor-pointer"
+                        title="Choose custom color"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {PRESET_BG_COLORS.map((color) => (
+                      <Button
+                        key={color.value}
+                        variant="outline"
+                        size="sm"
+                        className={cn(
+                          "h-8 px-3 text-xs font-medium rounded-full",
+                          selectedBgColor === color.value && "border-primary bg-primary/10 text-primary"
+                        )}
+                        onClick={() => setSelectedBgColor(color.value)}
+                        disabled={isProcessing}
+                      >
+                        <div 
+                          className="w-3 h-3 rounded-full mr-1.5 border" 
+                          style={{ backgroundColor: color.value }}
+                        />
+                        {color.name}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Photo Size */}
                 <div className="space-y-4 pt-4 border-t">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Photo Size</Label>

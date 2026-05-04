@@ -1,7 +1,7 @@
 'use server';
 /**
  * @fileOverview A Genkit flow for transforming an uploaded portrait photo into a passport-compliant photo,
- * with optional professional clothing overlays.
+ * with optional professional clothing overlays and customizable background color.
  *
  * - transformPhoto - A function that handles the AI photo transformation process.
  * - AiPhotoTransformationInput - The input type for the transformPhoto function.
@@ -21,6 +21,11 @@ const AiPhotoTransformationInputSchema = z.object({
     .enum(['none', 'suit', 'blazer', 'overcoat'])
     .optional()
     .describe('The professional clothing style to overlay on the subject.'),
+  backgroundColor: z
+    .string()
+    .optional()
+    .default('#FFFFFF')
+    .describe('The hex color code or color name for the background.'),
 });
 export type AiPhotoTransformationInput = z.infer<typeof AiPhotoTransformationInputSchema>;
 
@@ -50,7 +55,7 @@ const passportPhotoPrompt = ai.definePrompt({
 Requirements:
 - Detect and center the face with proper alignment (eyes level, head straight).
 - Preserve the subject's original facial expression, identity, and all natural features exactly. Do NOT alter face shape, eyes, nose, or mouth.
-- Replace the background with a clean, pure white background (#FFFFFF), evenly lit with no shadows or gradients.
+- Replace the background with a clean, uniform {{{backgroundColor}}} background, evenly lit with no shadows or gradients.
 
 {{#if coatInstructions}}
 - CLOTHING TRANSFORMATION: {{{coatInstructions}}}
