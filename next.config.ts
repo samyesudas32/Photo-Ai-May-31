@@ -33,6 +33,10 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: '10mb',
     },
+    allowedDevOrigins: [
+      '6000-firebase-pixelpass-ai-c-1777879305281.cluster-a6zx3cwnb5hnuwbgyxmofxpkfe.cloudworkstations.dev',
+      '*.cloudworkstations.dev'
+    ],
   },
 };
 
