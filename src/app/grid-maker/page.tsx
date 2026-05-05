@@ -17,11 +17,7 @@ import {
   Save,
   Ruler,
   LayoutGrid,
-  Maximize,
-  RotateCcw,
-  Move,
-  ZoomIn,
-  Settings
+  RotateCcw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -114,7 +110,6 @@ export default function GridMakerPage() {
   }, [totalSlots, selectedSizeId]);
 
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
-  const [tuningSlotIdx, setTuningSlotIdx] = useState<number | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDistributionOpen, setIsDistributionOpen] = useState(false);
   const [targetSlotString, setTargetSlotString] = useState("");
@@ -417,13 +412,6 @@ export default function GridMakerPage() {
     setSpacingCm(DEFAULT_SPACING);
   };
 
-  const updateSlotTuning = (updates: Partial<SlotData>) => {
-    if (tuningSlotIdx === null) return;
-    const newSlots = [...slots];
-    newSlots[tuningSlotIdx] = { ...newSlots[tuningSlotIdx], ...updates };
-    setSlots(newSlots);
-  };
-
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <Header />
@@ -623,19 +611,8 @@ export default function GridMakerPage() {
                                 alt={`S${i+1}`} 
                                 fill 
                                 className="object-cover" 
-                                style={{
-                                  transform: `rotate(${slot.rotation}deg) scale(${slot.scale}) translate(${slot.panX}%, ${slot.panY}%)`
-                                }}
                               />
                               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/image:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                <Button 
-                                  variant="secondary" 
-                                  size="icon" 
-                                  className="h-8 w-8 rounded-full"
-                                  onClick={(e) => { e.stopPropagation(); setTuningSlotIdx(i); }}
-                                >
-                                  <Settings className="h-4 w-4" />
-                                </Button>
                                 <Button 
                                   variant="destructive" 
                                   size="icon" 
@@ -693,121 +670,6 @@ export default function GridMakerPage() {
           </div>
         </div>
       </main>
-
-      <Dialog open={tuningSlotIdx !== null} onOpenChange={(open) => !open && setTuningSlotIdx(null)}>
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Maximize className="h-5 w-5 text-primary" /> HD Alignment Suite
-            </DialogTitle>
-            <DialogDescription>Precisely center and rotate your photo within the biometric frame.</DialogDescription>
-          </DialogHeader>
-          
-          {tuningSlotIdx !== null && slots[tuningSlotIdx] && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-4">
-              <div className="space-y-6">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
-                      <RotateCcw className="h-3 w-3" /> Rotation (deg)
-                    </Label>
-                    <span className="text-xs font-bold text-primary">{slots[tuningSlotIdx].rotation}°</span>
-                  </div>
-                  <Slider 
-                    value={[slots[tuningSlotIdx].rotation]} 
-                    min={-180} 
-                    max={180} 
-                    step={1} 
-                    onValueChange={(val) => updateSlotTuning({ rotation: val[0] })}
-                  />
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
-                      <ZoomIn className="h-3 w-3" /> Zoom Scale
-                    </Label>
-                    <span className="text-xs font-bold text-primary">{slots[tuningSlotIdx].scale.toFixed(2)}x</span>
-                  </div>
-                  <Slider 
-                    value={[slots[tuningSlotIdx].scale]} 
-                    min={0.5} 
-                    max={3} 
-                    step={0.01} 
-                    onValueChange={(val) => updateSlotTuning({ scale: val[0] })}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Pan X (%)</Label>
-                    <Input 
-                      type="number" 
-                      value={slots[tuningSlotIdx].panX} 
-                      onChange={(e) => updateSlotTuning({ panX: Number(e.target.value) })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Pan Y (%)</Label>
-                    <Input 
-                      type="number" 
-                      value={slots[tuningSlotIdx].panY} 
-                      onChange={(e) => updateSlotTuning({ panY: Number(e.target.value) })}
-                    />
-                  </div>
-                </div>
-
-                <Button 
-                  variant="outline" 
-                  className="w-full gap-2 text-xs font-bold"
-                  onClick={() => updateSlotTuning({ panX: 0, panY: 0, rotation: 0, scale: 1 })}
-                >
-                  <RotateCcw className="h-3 w-3" /> Reset Alignment
-                </Button>
-              </div>
-
-              <div className="flex flex-col items-center justify-center space-y-4">
-                <div 
-                  className="relative bg-white border-2 border-primary rounded-sm overflow-hidden shadow-inner cursor-move"
-                  style={{ 
-                    width: '200px', 
-                    height: `${200 * (getSizeFromId(slots[tuningSlotIdx].sizeId).heightCm / getSizeFromId(slots[tuningSlotIdx].sizeId).widthCm)}px`,
-                  }}
-                  onMouseMove={(e) => {
-                    if (e.buttons === 1) {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const dx = (e.movementX / rect.width) * 100;
-                      const dy = (e.movementY / rect.height) * 100;
-                      updateSlotTuning({ 
-                        panX: slots[tuningSlotIdx].panX + dx, 
-                        panY: slots[tuningSlotIdx].panY + dy 
-                      });
-                    }
-                  }}
-                >
-                  <Image 
-                    src={slots[tuningSlotIdx].url!} 
-                    alt="Tune" 
-                    fill 
-                    className="object-cover pointer-events-none" 
-                    style={{
-                      transform: `rotate(${slots[tuningSlotIdx].rotation}deg) scale(${slots[tuningSlotIdx].scale}) translate(${slots[tuningSlotIdx].panX}%, ${slots[tuningSlotIdx].panY}%)`
-                    }}
-                  />
-                  <div className="absolute inset-0 border-2 border-primary/20 pointer-events-none" />
-                </div>
-                <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                  <Move className="h-3 w-3" /> Drag photo to pan
-                </div>
-              </div>
-            </div>
-          )}
-          
-          <DialogFooter>
-            <Button onClick={() => setTuningSlotIdx(null)} className="w-full">Done Adjusting</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
