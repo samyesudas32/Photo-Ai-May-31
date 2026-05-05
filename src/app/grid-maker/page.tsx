@@ -51,7 +51,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 // CONSTANTS
 const DPI = 300;
 const CM_TO_PX = DPI / 2.54;
-const SPACING_PX = Math.round(0.52 * CM_TO_PX); // ~61px
+const SPACING_PX = Math.round(0.52 * CM_TO_PX); // ~61px (0.52cm)
 const COLS = 4;
 const ROWS = 2;
 const TOTAL_SLOTS = COLS * ROWS;
@@ -201,7 +201,7 @@ export default function GridMakerPage() {
     const newSlots = [...slots];
     const counterpart = getVerticalCounterpart(index);
     
-    // Vertical Sync for removal as per rule: "When a photo is removed, all photos below it should also be removed"
+    // Vertical Sync for removal: "When a photo is removed, all photos below it should also be removed"
     newSlots[index] = null;
     newSlots[counterpart] = null;
     
@@ -242,13 +242,10 @@ export default function GridMakerPage() {
       });
     }));
 
-    // Calculate Total Grid Size for Centering
-    const totalGridWidth = (slotWidth * COLS) + (SPACING_PX * (COLS - 1));
-    const totalGridHeight = (slotHeight * ROWS) + (SPACING_PX * (ROWS - 1));
-    
-    // Offset for Centering with respect to 0.52cm minimum margins
-    const offsetX = Math.max(SPACING_PX, (canvasWidthPx - totalGridWidth) / 2);
-    const offsetY = Math.max(SPACING_PX, (canvasHeightPx - totalGridHeight) / 2);
+    // FIXED TOP-LEFT ALIGNMENT
+    // As per user request: "don't waste the space the photo will apply in left side of the portion"
+    const offsetX = SPACING_PX; 
+    const offsetY = SPACING_PX;
 
     images.forEach((img, i) => {
       if (!img) return;
@@ -256,6 +253,9 @@ export default function GridMakerPage() {
       const row = Math.floor(i / COLS);
       const x = Math.round(offsetX + col * (slotWidth + SPACING_PX));
       const y = Math.round(offsetY + row * (slotHeight + SPACING_PX));
+
+      // Skip drawing if it falls outside the canvas
+      if (x + slotWidth > canvasWidthPx || y + slotHeight > canvasHeightPx) return;
 
       ctx.save();
       ctx.beginPath();
@@ -278,7 +278,7 @@ export default function GridMakerPage() {
       
       ctx.drawImage(img, dX, dY, dW, dH);
       
-      // Professional 3px Black Border (Stroke)
+      // Professional 3px Black Border (Stroke) as seen in reference image
       ctx.strokeStyle = "#000000";
       ctx.lineWidth = 3;
       ctx.strokeRect(x + 1.5, y + 1.5, slotWidth - 3, slotHeight - 3);
@@ -441,7 +441,7 @@ export default function GridMakerPage() {
                     </SelectContent>
                   </Select>
                   <p className="text-[10px] text-muted-foreground italic">
-                    Photos will be rendered at their exact physical size on the HD sheet.
+                    Photos will be rendered at their exact physical size, starting from the top-left.
                   </p>
                 </div>
 
