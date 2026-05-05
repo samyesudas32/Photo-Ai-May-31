@@ -69,6 +69,11 @@ export default function GridMakerPage() {
   const bulkInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
+  // Helper to find the vertical counterpart of a slot index
+  const getVerticalCounterpart = (index: number) => {
+    return index < 4 ? index + 4 : index - 4;
+  };
+
   const handleSlotClick = (index: number) => {
     setActiveSlot(index);
     fileInputRef.current?.click();
@@ -82,12 +87,17 @@ export default function GridMakerPage() {
         reader.onload = () => {
           const newData = reader.result as string;
           const newSlots = [...slots];
+          
+          // Apply Vertical Sync Logic: Update both top and bottom slots in the column
+          const counterpart = getVerticalCounterpart(activeSlot);
           newSlots[activeSlot] = newData;
+          newSlots[counterpart] = newData;
+          
           setSlots(newSlots);
           
           toast({
             title: "Photo Added",
-            description: `Placed in slot ${activeSlot + 1}.`,
+            description: `Column ${activeSlot % 4 + 1} synchronized (Up/Down).`,
           });
         };
         reader.readAsDataURL(file);
@@ -121,49 +131,56 @@ export default function GridMakerPage() {
       toast({
         variant: "destructive",
         title: "No Photos",
-        description: "Please select photos to upload.",
+        description: "Please select at least one photo.",
       });
       return;
     }
 
     const newSlots = [...slots];
-    const fileLoadPromises = bulkFiles.slice(0, targetIndices.length).map((file, idx) => {
-      return new Promise<void>((resolve) => {
+    
+    // Logic: If one file is selected, apply to all targets. If multiple, map them 1-to-1.
+    const fileLoadPromises = bulkFiles.map((file) => {
+      return new Promise<{file: File, data: string}>((resolve) => {
         const reader = new FileReader();
-        reader.onload = () => {
-          newSlots[targetIndices[idx]] = reader.result as string;
-          resolve();
-        };
+        reader.onload = () => resolve({ file, data: reader.result as string });
         reader.readAsDataURL(file);
       });
     });
 
-    await Promise.all(fileLoadPromises);
+    const loadedFiles = await Promise.all(fileLoadPromises);
+
+    targetIndices.forEach((targetIndex, idx) => {
+      // Use the specific file if multiple provided, otherwise repeat the first one
+      const data = loadedFiles.length > 1 ? (loadedFiles[idx]?.data || loadedFiles[0].data) : loadedFiles[0].data;
+      
+      // Vertical Sync: Always update the column pair
+      const counterpart = getVerticalCounterpart(targetIndex);
+      newSlots[targetIndex] = data;
+      newSlots[counterpart] = data;
+    });
+
     setSlots(newSlots);
     setIsDistributionOpen(false);
     setTargetSlotString("");
     setBulkFiles([]);
     
     toast({
-      title: "Bulk Distribution Complete",
-      description: `Updated ${fileLoadPromises.length} assigned slots.`,
+      title: "Targeted Upload Complete",
+      description: `Synchronized ${targetIndices.length} columns based on your selection.`,
     });
   };
 
   const handleRemove = (index: number) => {
     const newSlots = [...slots];
-    newSlots[index] = null;
+    const counterpart = getVerticalCounterpart(index);
     
-    // Vertical Logic: If a photo in the top row (0-3) is removed, 
-    // the one below it (index + 4) is also removed.
-    if (index < 4) {
-      newSlots[index + 4] = null;
-    }
+    newSlots[index] = null;
+    newSlots[counterpart] = null;
     
     setSlots(newSlots);
     toast({
       title: "Photo Removed",
-      description: "Slot cleared according to vertical alignment logic.",
+      description: "Column cleared according to vertical alignment logic.",
     });
   };
 
@@ -172,7 +189,7 @@ export default function GridMakerPage() {
     toast({ title: "Canvas Reset", description: "All slots cleared." });
   };
 
-  const drawCanvas = useCallback(() => {
+  const drawCanvas = useCallback(async () => {
     if (!canvasRef.current) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
@@ -181,12 +198,26 @@ export default function GridMakerPage() {
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
 
+    // Clear and fill white background
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    slots.forEach((uri, i) => {
-      if (!uri) return;
+    // Load all images first for reliable rendering
+    const loadPromises = slots.map((uri, i) => {
+      if (!uri) return Promise.resolve(null);
+      return new Promise<HTMLImageElement | null>((resolve) => {
+        const img = new window.Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = uri;
+      });
+    });
+
+    const images = await Promise.all(loadPromises);
+
+    images.forEach((img, i) => {
+      if (!img) return;
 
       const col = i % COLS;
       const row = Math.floor(i / COLS);
@@ -194,50 +225,46 @@ export default function GridMakerPage() {
       const x = Math.round(SPACING_PX + col * (SLOT_WIDTH + SPACING_PX));
       const y = Math.round(SPACING_PX + row * (SLOT_HEIGHT + SPACING_PX));
 
-      const img = new window.Image();
-      img.onload = () => {
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(x, y, SLOT_WIDTH, SLOT_HEIGHT);
-        ctx.clip();
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, y, SLOT_WIDTH, SLOT_HEIGHT);
+      ctx.clip();
 
-        const imgAspect = img.width / img.height;
-        const slotAspect = SLOT_WIDTH / SLOT_HEIGHT;
-        let drawW, drawH, drawX, drawY;
+      const imgAspect = img.width / img.height;
+      const slotAspect = SLOT_WIDTH / SLOT_HEIGHT;
+      let drawW, drawH, drawX, drawY;
 
-        if (imgAspect > slotAspect) {
-          drawH = SLOT_HEIGHT;
-          drawW = drawH * imgAspect;
-        } else {
-          drawW = SLOT_WIDTH;
-          drawH = drawW / imgAspect;
-        }
+      if (imgAspect > slotAspect) {
+        drawH = SLOT_HEIGHT;
+        drawW = drawH * imgAspect;
+      } else {
+        drawW = SLOT_WIDTH;
+        drawH = drawW / imgAspect;
+      }
 
-        drawX = Math.round(x + (SLOT_WIDTH - drawW) / 2);
-        drawY = Math.round(y + (SLOT_HEIGHT - drawH) / 2);
+      drawX = Math.round(x + (SLOT_WIDTH - drawW) / 2);
+      drawY = Math.round(y + (SLOT_HEIGHT - drawH) / 2);
 
-        ctx.drawImage(img, drawX, drawY, drawW, drawH);
-        
-        ctx.strokeStyle = "#000000";
-        ctx.lineWidth = 3;
-        ctx.strokeRect(x + 1.5, y + 1.5, SLOT_WIDTH - 3, SLOT_HEIGHT - 3);
-        
-        ctx.restore();
-      };
-      img.src = uri;
+      ctx.drawImage(img, drawX, drawY, drawW, drawH);
+      
+      // Apply 3px black stroke inside the clipping area to maintain size
+      ctx.strokeStyle = "#000000";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x + 1.5, y + 1.5, SLOT_WIDTH - 3, SLOT_HEIGHT - 3);
+      
+      ctx.restore();
     });
   }, [slots]);
 
   useEffect(() => {
-    const timer = setTimeout(drawCanvas, 100);
-    return () => clearTimeout(timer);
+    drawCanvas();
   }, [drawCanvas, slots]);
 
   const downloadJPG = () => {
     if (!canvasRef.current) return;
     const link = document.createElement("a");
     link.download = `pixelpass-hd-print-sheet.jpg`;
-    link.href = canvasRef.current.toDataURL("image/jpeg", 1.0);
+    link.href = canvasRef.current.toDataURL("image/jpeg", 1.0); // 1.0 for max quality
     link.click();
   };
 
@@ -257,7 +284,7 @@ export default function GridMakerPage() {
       format: [6, 4]
     });
     const imgData = canvasRef.current.toDataURL("image/png");
-    pdf.addImage(imgData, "PNG", 0, 0, 6, 4);
+    pdf.addImage(imgData, "PNG", 0, 0, 6, 4, undefined, 'FAST');
     pdf.save(`pixelpass-hd-print-sheet.pdf`);
   };
 
@@ -277,7 +304,7 @@ export default function GridMakerPage() {
               <Grid3X3 className="h-8 w-8" /> HD Print Setup
             </h1>
             <p className="text-muted-foreground text-sm font-medium">
-              Use individual slots, or input multiple slot numbers below for bulk distribution. The final 4×2 grid maintains absolute 0.52cm margins for printing.
+              4x2 Grid (1800x1200px @ 300DPI). Vertical sync ensures perfect column alignment.
             </p>
           </div>
           
@@ -291,7 +318,7 @@ export default function GridMakerPage() {
               <DialogHeader>
                 <DialogTitle>Targeted Slot Distribution</DialogTitle>
                 <DialogDescription>
-                  Enter destination slot number(s) and select photos for bulk assignment.
+                  Enter destination slot number(s) (1-8). Columns will sync vertically.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-6 py-4">
@@ -316,7 +343,7 @@ export default function GridMakerPage() {
                   >
                     <Plus className="h-8 w-8 text-muted-foreground" />
                     <p className="text-xs text-muted-foreground font-medium">
-                      {bulkFiles.length > 0 ? `${bulkFiles.length} photos selected` : "Select Photos for Assigned Slots:"}
+                      {bulkFiles.length > 0 ? `${bulkFiles.length} photos selected` : "Click to select photos"}
                     </p>
                     <input 
                       type="file" 
@@ -333,6 +360,7 @@ export default function GridMakerPage() {
                 <Button 
                   onClick={handleProcessBulk} 
                   className="w-full bg-primary hover:bg-primary/90 font-bold h-12"
+                  disabled={!targetSlotString || bulkFiles.length === 0}
                 >
                   Process and Upload to Selected Slots
                 </Button>
@@ -346,7 +374,7 @@ export default function GridMakerPage() {
             <Card className="shadow-xl border-none bg-white">
               <CardHeader className="pb-4">
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <Camera className="h-5 w-5 text-primary" /> Grid Slots
+                  <Camera className="h-5 w-5 text-primary" /> Grid Slots (4x2)
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -435,10 +463,10 @@ export default function GridMakerPage() {
             
             <div className="p-4 bg-primary/5 rounded-xl border border-primary/10">
               <h4 className="text-xs font-black uppercase text-primary mb-2 flex items-center gap-2">
-                <CheckCircle2 className="h-3 w-3 text-green-500" /> Print Optimized
+                <CheckCircle2 className="h-3 w-3 text-green-500" /> Professional Sync
               </h4>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                6x4 INCH • 300 DPI • LOSSLESS HD EXPORT. Gaps and margins are strictly fixed at 0.52cm.
+                Column synchronization (Up/Down) is enabled. Spacing is fixed at 0.52cm for perfect 6x4" prints.
               </p>
             </div>
           </div>
