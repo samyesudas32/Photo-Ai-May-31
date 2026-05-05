@@ -17,7 +17,9 @@ import {
   LayoutGrid,
   Pencil,
   CheckCircle2,
-  Loader2
+  Loader2,
+  RefreshCw,
+  MoveHorizontal
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -34,6 +36,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
 import Link from "next/link";
@@ -52,12 +55,10 @@ import {
 } from "@/firebase";
 import { doc, collection, query, orderBy, setDoc, getDoc } from "firebase/firestore";
 import { Select, SelectContent, SelectItem, SelectValue, SelectTrigger } from "@/components/ui/select";
-import { initiateAnonymousSignIn } from "@/firebase/non-blocking-login";
 
 // CONSTANTS - High Precision 300 DPI for Professional Printing
 const DPI = 300;
 const CM_TO_PX = DPI / 2.54;
-const FIXED_SPACING = 0.3; // Optimized spacing to fit 8 passport photos (4x2) on 6x4 inch paper
 
 type Unit = 'cm' | 'mm' | 'in' | 'px';
 
@@ -92,6 +93,7 @@ export default function GridMakerPage() {
   const [canvasDim, setCanvasDim] = useState({ width: 6, height: 4 }); // In inches
   const [numCols, setNumCols] = useState(4);
   const [numRows, setNumRows] = useState(2);
+  const [spacingCm, setSpacingCm] = useState(0.3); // Manual gap control
   const [selectedSizeId, setSelectedSizeId] = useState<string>('default-passport');
   
   const totalSlots = useMemo(() => numCols * numRows, [numCols, numRows]);
@@ -333,6 +335,14 @@ export default function GridMakerPage() {
     }
   };
 
+  const resetGrid = () => {
+    setSlots(Array(totalSlots).fill(null).map(() => DEFAULT_SLOT_DATA(selectedSizeId)));
+    setSpacingCm(0.3);
+    setNumCols(4);
+    setNumRows(2);
+    toast({ title: "Grid Reset", description: "All slots cleared and settings returned to default." });
+  };
+
   const convertToCm = (val: number, fromUnit: Unit): number => {
     if (fromUnit === 'cm') return val;
     if (fromUnit === 'mm') return val / 10;
@@ -368,7 +378,6 @@ export default function GridMakerPage() {
       return;
     }
 
-    // Ensure Profile document exists first for ownership
     const userRef = doc(db, 'users', user.uid);
     const userSnap = await getDoc(userRef);
     if (!userSnap.exists()) {
@@ -412,7 +421,7 @@ export default function GridMakerPage() {
       setNewSize({
         name: currentSize.name,
         description: currentSize.description,
-        width: Math.round(currentSize.widthCm * 10), // Default to MM for editing simplicity
+        width: Math.round(currentSize.widthCm * 10),
         height: Math.round(currentSize.heightCm * 10),
         unit: 'mm'
       });
@@ -426,7 +435,7 @@ export default function GridMakerPage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const spacingPx = Math.round(FIXED_SPACING * CM_TO_PX);
+    const spacingPx = Math.round(spacingCm * CM_TO_PX);
 
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
@@ -504,7 +513,7 @@ export default function GridMakerPage() {
         ctx.strokeRect(x, y, slotWidth, slotHeight);
       }
     });
-  }, [slots, canvasWidthPx, canvasHeightPx, numCols, numRows, getSizeFromId]);
+  }, [slots, canvasWidthPx, canvasHeightPx, numCols, numRows, getSizeFromId, spacingCm]);
 
   useEffect(() => {
     drawCanvas();
@@ -646,6 +655,30 @@ export default function GridMakerPage() {
 
                 <div className="space-y-4 pt-4 border-t">
                   <div className="flex items-center justify-between">
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground">Photo Gap (cm)</Label>
+                    <span className="text-[10px] font-bold text-primary">{spacingCm}cm</span>
+                  </div>
+                  <div className="flex gap-4 items-center">
+                    <Slider 
+                      value={[spacingCm]} 
+                      min={0} 
+                      max={2} 
+                      step={0.1} 
+                      onValueChange={(val) => setSpacingCm(val[0])}
+                      className="flex-1"
+                    />
+                    <Input 
+                      type="number" 
+                      step="0.1" 
+                      value={spacingCm} 
+                      onChange={(e) => setSpacingCm(Number(e.target.value))}
+                      className="w-16 h-8 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-4 border-t">
+                  <div className="flex items-center justify-between">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground">Target Photo Size</Label>
                     <div className="flex gap-1">
                       <Button variant="ghost" size="sm" className="h-8 px-2 text-primary font-bold" onClick={handleEditCurrentSize}>
@@ -777,6 +810,13 @@ export default function GridMakerPage() {
                   </Button>
                   <Button variant="outline" className="w-full h-12 font-bold" onClick={downloadPDF} disabled={!slots.some(s => s.url)}>
                     <FileText className="mr-2 h-5 w-5" /> Export HD PDF
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    className="w-full text-destructive hover:bg-destructive/10 font-bold" 
+                    onClick={resetGrid}
+                  >
+                    <RefreshCw className="mr-2 h-4 w-4" /> Reset Grid
                   </Button>
                 </div>
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
