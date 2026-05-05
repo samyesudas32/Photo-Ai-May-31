@@ -147,6 +147,10 @@
           "type": "number",
           "description": "The custom height of the passport photo in centimeters."
         },
+        "order": {
+          "type": "number",
+          "description": "The sort order index for display purposes."
+        },
         "createdAt": {
           "type": "string",
           "description": "The timestamp when this custom size definition was created.",
@@ -165,6 +169,7 @@
         "description",
         "widthCm",
         "heightCm",
+        "order",
         "createdAt",
         "updatedAt"
       ]
