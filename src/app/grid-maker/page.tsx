@@ -54,7 +54,7 @@ import {
 import { doc, collection, query, orderBy } from "firebase/firestore";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-// CONSTANTS
+// CONSTANTS - High Precision 300 DPI for Professional Printing
 const DPI = 300;
 const CM_TO_PX = DPI / 2.54;
 const DEFAULT_SPACING = 0.52;
@@ -181,6 +181,7 @@ export default function GridMakerPage() {
       if (file.type.startsWith("image/")) {
         const reader = new FileReader();
         reader.onload = () => {
+          // Captures the full original file data to ensure no quality loss
           const newData = reader.result as string;
           const newSlots = [...slots];
           const colIndices = getColumnIndices(activeSlot);
@@ -193,7 +194,7 @@ export default function GridMakerPage() {
           });
           
           setSlots(newSlots);
-          toast({ title: "Column Updated", description: "Column synced with current target size." });
+          toast({ title: "Column Updated", description: "High-resolution photo synced successfully." });
         };
         reader.readAsDataURL(file);
       }
@@ -242,7 +243,7 @@ export default function GridMakerPage() {
     setIsDistributionOpen(false);
     setTargetSlotString("");
     setBulkFiles([]);
-    toast({ title: "Bulk Distribution Complete", description: "Columns populated with selected size." });
+    toast({ title: "Bulk Distribution Complete", description: "Original quality photos assigned." });
   };
 
   const handleRemove = (index: number) => {
@@ -252,7 +253,7 @@ export default function GridMakerPage() {
       newSlots[idx] = DEFAULT_SLOT_DATA(newSlots[idx].sizeId);
     });
     setSlots(newSlots);
-    toast({ title: "Column Removed", description: "Column cleared to maintain symmetry." });
+    toast({ title: "Column Removed", description: "Column cleared." });
   };
 
   const handleSizeChange = (newSizeId: string) => {
@@ -264,7 +265,6 @@ export default function GridMakerPage() {
         newSlots[idx] = { ...newSlots[idx], sizeId: newSizeId };
       });
       setSlots(newSlots);
-      toast({ title: "Size Updated", description: "Selected column size updated." });
     }
   };
 
@@ -288,6 +288,7 @@ export default function GridMakerPage() {
 
     const spacingPx = Math.round(spacingCm * CM_TO_PX);
 
+    // Force highest interpolation quality to ensure no detail is lost during drawing
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     ctx.clearRect(0, 0, canvasWidthPx, canvasHeightPx);
@@ -304,7 +305,6 @@ export default function GridMakerPage() {
       });
     }));
 
-    // Calculate Dynamic Column Widths and Row Heights
     const colWidths = Array(numCols).fill(0);
     const rowHeights = Array(numRows).fill(0);
 
@@ -348,7 +348,6 @@ export default function GridMakerPage() {
         ctx.rect(x, y, slotWidth, slotHeight);
         ctx.clip();
 
-        // Advanced HD Transformation
         const centerX = x + slotWidth / 2;
         const centerY = y + slotHeight / 2;
         
@@ -366,7 +365,6 @@ export default function GridMakerPage() {
           dW = slotWidth; dH = dW / imgAspect;
         }
 
-        // Panning is relative to slot bounds
         const panX = (slot.panX / 100) * slotWidth;
         const panY = (slot.panY / 100) * slotHeight;
 
@@ -374,7 +372,6 @@ export default function GridMakerPage() {
         
         ctx.restore();
         
-        // Professional 3px Black Stroke (Border-box)
         ctx.strokeStyle = "#000000";
         ctx.lineWidth = 3;
         ctx.strokeRect(x + 1.5, y + 1.5, slotWidth - 3, slotHeight - 3);
@@ -390,6 +387,7 @@ export default function GridMakerPage() {
     if (!canvasRef.current) return;
     const link = document.createElement("a");
     link.download = `pixelpass-hd-sheet.jpg`;
+    // Explicitly set 1.0 quality for maximum fidelity
     link.href = canvasRef.current.toDataURL("image/jpeg", 1.0);
     link.click();
   };
@@ -398,6 +396,7 @@ export default function GridMakerPage() {
     if (!canvasRef.current) return;
     const link = document.createElement("a");
     link.download = `pixelpass-hd-sheet.png`;
+    // PNG is lossless by default
     link.href = canvasRef.current.toDataURL("image/png");
     link.click();
   };
@@ -409,16 +408,13 @@ export default function GridMakerPage() {
       unit: "in",
       format: [canvasDim.width, canvasDim.height]
     });
+    // Use PNG for PDF addition to maintain lossless quality
     pdf.addImage(canvasRef.current.toDataURL("image/png"), "PNG", 0, 0, canvasDim.width, canvasDim.height);
     pdf.save(`pixelpass-hd-sheet.pdf`);
   };
 
   const handleResetSpacing = () => {
     setSpacingCm(DEFAULT_SPACING);
-    toast({
-      title: "Spacing Reset",
-      description: `Gaps restored to official ${DEFAULT_SPACING}cm standard.`,
-    });
   };
 
   const updateSlotTuning = (updates: Partial<SlotData>) => {
