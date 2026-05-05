@@ -666,6 +666,7 @@ export default function GridMakerPage() {
                         <DialogContent className="sm:max-w-md">
                           <DialogHeader>
                             <DialogTitle>{editingSizeId ? 'Edit' : 'Add'} Size</DialogTitle>
+                            <DialogDescription>Define your resolution and target units.</DialogDescription>
                           </DialogHeader>
                           <div className="space-y-4 py-4">
                             <div className="space-y-2">
@@ -673,7 +674,7 @@ export default function GridMakerPage() {
                               <Input placeholder="e.g., My Visa Size" value={newSize.name} onChange={(e) => setNewSize({...newSize, name: e.target.value})} />
                             </div>
                             <div className="space-y-3">
-                              <Label>Dimensions</Label>
+                              <Label>Dimensions & Resolution</Label>
                               <Tabs value={newSize.unit} onValueChange={(v) => handleUnitChange(v as Unit)}>
                                 <TabsList className="grid w-full grid-cols-4">
                                   <TabsTrigger value="mm">MM</TabsTrigger>
@@ -684,18 +685,37 @@ export default function GridMakerPage() {
                               </Tabs>
                               <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                  <Label className="text-xs uppercase">Width</Label>
-                                  <Input type="number" value={newSize.width} onChange={(e) => setNewSize({...newSize, width: Number(e.target.value)})} />
+                                  <Label className="text-xs uppercase font-bold text-muted-foreground">Width ({newSize.unit})</Label>
+                                  <Input 
+                                    type="number" 
+                                    step={newSize.unit === 'px' || newSize.unit === 'mm' ? "1" : "0.01"}
+                                    value={newSize.width} 
+                                    onChange={(e) => setNewSize({...newSize, width: Number(e.target.value)})} 
+                                  />
                                 </div>
                                 <div className="space-y-2">
-                                  <Label className="text-xs uppercase">Height</Label>
-                                  <Input type="number" value={newSize.height} onChange={(e) => setNewSize({...newSize, height: Number(e.target.value)})} />
+                                  <Label className="text-xs uppercase font-bold text-muted-foreground">Height ({newSize.unit})</Label>
+                                  <Input 
+                                    type="number" 
+                                    step={newSize.unit === 'px' || newSize.unit === 'mm' ? "1" : "0.01"}
+                                    value={newSize.height} 
+                                    onChange={(e) => setNewSize({...newSize, height: Number(e.target.value)})} 
+                                  />
                                 </div>
                               </div>
                             </div>
+                            <div className="space-y-2">
+                              <Label>Description (Optional)</Label>
+                              <Textarea 
+                                placeholder="Describe the purpose of this size..." 
+                                value={newSize.description} 
+                                onChange={(e) => setNewSize({...newSize, description: e.target.value})} 
+                              />
+                            </div>
                           </div>
                           <DialogFooter>
-                            <Button onClick={handleSaveCustomSize}>Save Size</Button>
+                            <Button variant="outline" onClick={() => setIsAddSizeOpen(false)}>Cancel</Button>
+                            <Button onClick={handleSaveCustomSize}>Save Dimensions</Button>
                           </DialogFooter>
                         </DialogContent>
                       </Dialog>
@@ -710,7 +730,7 @@ export default function GridMakerPage() {
                       <SelectContent>
                         {customSizes?.map(size => (
                           <SelectItem key={size.id} value={size.id}>
-                            {size.name} ({size.widthCm}x{size.heightCm}cm)
+                            {size.name} ({size.widthCm}x{size.heightCm} cm)
                           </SelectItem>
                         ))}
                       </SelectContent>
