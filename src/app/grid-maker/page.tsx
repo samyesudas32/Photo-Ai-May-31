@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
@@ -51,14 +50,14 @@ import {
   deleteDocumentNonBlocking,
   useCollection
 } from "@/firebase";
-import { doc, collection, query, orderBy } from "firebase/firestore";
+import { doc, collection, query, orderBy, setDoc, getDoc } from "firebase/firestore";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { initiateAnonymousSignIn } from "@/firebase/non-blocking-login";
 
 // CONSTANTS - High Precision 300 DPI for Professional Printing
 const DPI = 300;
 const CM_TO_PX = DPI / 2.54;
-const FIXED_SPACING = 0.52; // Internal standard maintained for professional margins
+const FIXED_SPACING = 0.3; // Optimized spacing to fit 8 passport photos (4x2) on 6x4 inch paper
 
 type Unit = 'cm' | 'mm' | 'in' | 'px';
 
@@ -87,10 +86,6 @@ const DEFAULT_SLOT_DATA = (sizeId: string): SlotData => ({
 export default function GridMakerPage() {
   const { user } = useUser();
   const db = useFirestore();
-  const { auth } = useMemoFirebase(() => {
-    const { initializeFirebase } = require('@/firebase');
-    return initializeFirebase();
-  }, []);
   const { toast } = useToast();
 
   // Canvas & Grid State
@@ -99,7 +94,7 @@ export default function GridMakerPage() {
   const [numRows, setNumRows] = useState(2);
   const [selectedSizeId, setSelectedSizeId] = useState<string>('default-passport');
   
-  const totalSlots = numCols * numRows;
+  const totalSlots = useMemo(() => numCols * numRows, [numCols, numRows]);
   const [slots, setSlots] = useState<SlotData[]>([]);
 
   // Custom Size Management State
@@ -123,93 +118,7 @@ export default function GridMakerPage() {
   const bulkInputRef = useRef<HTMLInputElement>(null);
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
 
-  // Initialize Auth
-  useEffect(() => {
-    if (!user && auth) {
-      initiateAnonymousSignIn(auth);
-    }
-  }, [user, auth]);
-
-  // Load User Data
-  const userProfileRef = useMemoFirebase(() => {
-    if (!db || !user?.uid) return null;
-    return doc(db, 'users', user.uid);
-  }, [db, user]);
-
-  const { data: profile } = useDoc<any>(userProfileRef);
-
-  // Ensure User Profile exists
-  useEffect(() => {
-    if (user && db && !profile) {
-      setDocumentNonBlocking(doc(db, 'users', user.uid), {
-        id: user.uid,
-        email: user.email || 'anonymous@pixelpass.ai',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
-    }
-  }, [user, db, profile]);
-
-  const customSizesQuery = useMemoFirebase(() => {
-    if (!db || !user?.uid) return null;
-    return query(collection(db, 'users', user.uid, 'custom_passport_sizes'), orderBy('order', 'asc'));
-  }, [db, user]);
-
-  const { data: customSizes, isLoading: isSizesLoading } = useCollection<CustomSize>(customSizesQuery);
-
-  // Seed default sizes and handle selection
-  useEffect(() => {
-    if (user && db && customSizes && customSizes.length === 0 && !isSizesLoading) {
-      const defaultSizes = [
-        {
-          id: 'default-passport',
-          name: 'Passport Photo',
-          description: 'Standard International (35x45mm)',
-          widthCm: 3.5,
-          heightCm: 4.5,
-          order: 0
-        },
-        {
-          id: 'default-stamp',
-          name: 'Stamp Size',
-          description: 'Small format for documents (20x25mm)',
-          widthCm: 2.0,
-          heightCm: 2.5,
-          order: 1
-        },
-        {
-          id: 'default-pan',
-          name: 'PAN Card Size',
-          description: 'Official Indian PAN Card (25x35mm)',
-          widthCm: 2.5,
-          heightCm: 3.5,
-          order: 2
-        }
-      ];
-
-      defaultSizes.forEach(size => {
-        setDocumentNonBlocking(
-          doc(db, 'users', user.uid, 'custom_passport_sizes', size.id),
-          {
-            ...size,
-            userId: user.uid,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          },
-          { merge: true }
-        );
-      });
-    }
-  }, [user, db, customSizes, isSizesLoading]);
-
-  // Handle initial selection once sizes are loaded
-  useEffect(() => {
-    if (customSizes && customSizes.length > 0 && !selectedSizeId) {
-      setSelectedSizeId(customSizes[0].id);
-    }
-  }, [customSizes, selectedSizeId]);
-
-  // Initialize slots when grid dimensions change
+  // Initialize slots when grid dimensions change or size selection changes
   useEffect(() => {
     setSlots(prev => {
       const newSlots: SlotData[] = Array(totalSlots).fill(null).map(() => DEFAULT_SLOT_DATA(selectedSizeId));
@@ -222,11 +131,93 @@ export default function GridMakerPage() {
     });
   }, [totalSlots, selectedSizeId]);
 
+  // Load User Data
+  const userProfileRef = useMemoFirebase(() => {
+    if (!db || !user?.uid) return null;
+    return doc(db, 'users', user.uid);
+  }, [db, user]);
+
+  const { data: profile } = useDoc<any>(userProfileRef);
+
   useEffect(() => {
     if (profile?.preferredCanvasSize) {
       setCanvasDim(profile.preferredCanvasSize);
     }
   }, [profile]);
+
+  const customSizesQuery = useMemoFirebase(() => {
+    if (!db || !user?.uid) return null;
+    return query(collection(db, 'users', user.uid, 'custom_passport_sizes'), orderBy('order', 'asc'));
+  }, [db, user]);
+
+  const { data: customSizes, isLoading: isSizesLoading } = useCollection<CustomSize>(customSizesQuery);
+
+  // Seed default sizes
+  useEffect(() => {
+    const seedDefaults = async () => {
+      if (user && db && customSizes && customSizes.length === 0 && !isSizesLoading) {
+        const defaultSizes = [
+          {
+            id: 'default-passport',
+            name: 'Passport Photo',
+            description: 'Standard International (35x45mm)',
+            widthCm: 3.5,
+            heightCm: 4.5,
+            order: 0
+          },
+          {
+            id: 'default-stamp',
+            name: 'Stamp Size',
+            description: 'Small format (20x25mm)',
+            widthCm: 2.0,
+            heightCm: 2.5,
+            order: 1
+          },
+          {
+            id: 'default-pan',
+            name: 'PAN Card Size',
+            description: 'Official PAN Card (25x35mm)',
+            widthCm: 2.5,
+            heightCm: 3.5,
+            order: 2
+          }
+        ];
+
+        // Ensure Profile document exists first
+        const userRef = doc(db, 'users', user.uid);
+        const userSnap = await getDoc(userRef);
+        if (!userSnap.exists()) {
+          await setDoc(userRef, {
+            id: user.uid,
+            email: user.email || 'anonymous@pixelpass.ai',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+        }
+
+        for (const size of defaultSizes) {
+          setDocumentNonBlocking(
+            doc(db, 'users', user.uid, 'custom_passport_sizes', size.id),
+            {
+              ...size,
+              userId: user.uid,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            },
+            { merge: true }
+          );
+        }
+      }
+    };
+    seedDefaults();
+  }, [user, db, customSizes, isSizesLoading]);
+
+  // Handle initial selection
+  useEffect(() => {
+    if (customSizes && customSizes.length > 0 && !selectedSizeId) {
+      setSelectedSizeId(customSizes[0].id);
+    }
+  }, [customSizes, selectedSizeId]);
 
   // Derived Pixel Dimensions
   const canvasWidthPx = useMemo(() => Math.round(canvasDim.width * DPI), [canvasDim.width]);
@@ -235,7 +226,6 @@ export default function GridMakerPage() {
   const getSizeFromId = useCallback((sizeId: string) => {
     const size = customSizes?.find(s => s.id === sizeId);
     if (size) return { widthCm: size.widthCm, heightCm: size.heightCm };
-    // Fallbacks if seeding is still happening or for old data
     if (sizeId === 'default-passport') return { widthCm: 3.5, heightCm: 4.5 };
     if (sizeId === 'default-stamp') return { widthCm: 2.0, heightCm: 2.5 };
     if (sizeId === 'default-pan') return { widthCm: 2.5, heightCm: 3.5 };
@@ -272,7 +262,7 @@ export default function GridMakerPage() {
             };
           });
           setSlots(newSlots);
-          toast({ title: "Column Updated", description: "Original quality photo assigned." });
+          toast({ title: "Photo Assigned", description: "Original quality maintained." });
         };
         reader.readAsDataURL(file);
       }
@@ -321,14 +311,14 @@ export default function GridMakerPage() {
     setIsDistributionOpen(false);
     setTargetSlotString("");
     setBulkFiles([]);
-    toast({ title: "Bulk Distribution Complete", description: "Original quality photos assigned." });
+    toast({ title: "Bulk Upload Complete" });
   };
 
   const handleRemove = (index: number) => {
     const newSlots = [...slots];
     newSlots[index] = { ...newSlots[index], url: null };
     setSlots(newSlots);
-    toast({ title: "Photo Removed", description: "Slot cleared." });
+    toast({ title: "Photo Removed" });
   };
 
   const handleSizeChange = (newSizeId: string) => {
@@ -343,7 +333,6 @@ export default function GridMakerPage() {
     }
   };
 
-  // Custom Size Logic
   const convertToCm = (val: number, fromUnit: Unit): number => {
     if (fromUnit === 'cm') return val;
     if (fromUnit === 'mm') return val / 10;
@@ -372,13 +361,10 @@ export default function GridMakerPage() {
     }));
   };
 
-  const handleSaveCustomSize = () => {
-    if (!user || !db) {
-      toast({ variant: "destructive", title: "Auth Required", description: "Please wait for authentication to complete." });
-      return;
-    }
+  const handleSaveCustomSize = async () => {
+    if (!user || !db) return;
     if (!newSize.name || !newSize.width || !newSize.height) {
-      toast({ variant: "destructive", title: "Missing Information", description: "Please provide a name and dimensions." });
+      toast({ variant: "destructive", title: "Missing Data", description: "Name and dimensions are required." });
       return;
     }
 
@@ -404,37 +390,7 @@ export default function GridMakerPage() {
     setIsAddSizeOpen(false);
     setEditingSizeId(null);
     setNewSize({ name: '', description: '', width: 35, height: 45, unit: 'mm' });
-    toast({ title: editingSizeId ? "Size Updated" : "Size Saved", description: "Changes synced successfully." });
-  };
-
-  const handleEditSize = (size: CustomSize) => {
-    setEditingSizeId(size.id);
-    setNewSize({
-      name: size.name,
-      description: size.description,
-      width: Math.round(size.widthCm * 10),
-      height: Math.round(size.heightCm * 10),
-      unit: 'mm'
-    });
-    setIsAddSizeOpen(true);
-  };
-
-  const handleDeleteSize = (sizeId: string) => {
-    if (!user || !db) return;
-    deleteDocumentNonBlocking(doc(db, 'users', user.uid, 'custom_passport_sizes', sizeId));
-    if (selectedSizeId === sizeId) setSelectedSizeId(customSizes?.length ? customSizes[0].id : 'default-passport');
-    toast({ title: "Size Deleted" });
-  };
-
-  const saveCanvasSettings = () => {
-    if (user && db) {
-      setDocumentNonBlocking(doc(db, 'users', user.uid), {
-        preferredCanvasSize: canvasDim,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
-      toast({ title: "Settings Saved", description: "Canvas preferences updated." });
-    }
-    setIsSettingsOpen(false);
+    toast({ title: editingSizeId ? "Size Updated" : "Size Saved" });
   };
 
   const drawCanvas = useCallback(async () => {
@@ -474,7 +430,6 @@ export default function GridMakerPage() {
       if (hPx > rowHeights[row]) rowHeights[row] = hPx;
     });
 
-    // Start from top-left with fixed spacing as margin
     const offsetX = spacingPx; 
     const offsetY = spacingPx;
 
@@ -518,8 +473,8 @@ export default function GridMakerPage() {
         ctx.restore();
         
         ctx.strokeStyle = "#000000";
-        ctx.lineWidth = 3; 
-        ctx.strokeRect(x + 1.5, y + 1.5, slotWidth - 3, slotHeight - 3);
+        ctx.lineWidth = 1; 
+        ctx.strokeRect(x, y, slotWidth, slotHeight);
       }
     });
   }, [slots, canvasWidthPx, canvasHeightPx, numCols, numRows, getSizeFromId]);
@@ -531,16 +486,16 @@ export default function GridMakerPage() {
   const downloadJPG = () => {
     if (!canvasRef.current) return;
     const link = document.createElement("a");
-    link.download = `pixelpass-hd-sheet.jpg`;
-    link.href = canvasRef.current.toDataURL("image/jpeg", 1.0); // Maximum quality
+    link.download = `pixelpass-hd.jpg`;
+    link.href = canvasRef.current.toDataURL("image/jpeg", 1.0);
     link.click();
   };
 
   const downloadPNG = () => {
     if (!canvasRef.current) return;
     const link = document.createElement("a");
-    link.download = `pixelpass-hd-sheet.png`;
-    link.href = canvasRef.current.toDataURL("image/png"); // Lossless
+    link.download = `pixelpass-hd.png`;
+    link.href = canvasRef.current.toDataURL("image/png");
     link.click();
   };
 
@@ -552,7 +507,7 @@ export default function GridMakerPage() {
       format: [canvasDim.width, canvasDim.height]
     });
     pdf.addImage(canvasRef.current.toDataURL("image/png"), "PNG", 0, 0, canvasDim.width, canvasDim.height);
-    pdf.save(`pixelpass-hd-sheet.pdf`);
+    pdf.save(`pixelpass-hd.pdf`);
   };
 
   return (
@@ -568,58 +523,60 @@ export default function GridMakerPage() {
               </Link>
             </Button>
             <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-              <Grid3X3 className="h-8 w-8" /> HD Grid Setup
+              <Grid3X3 className="h-8 w-8" /> HD Grid Maker
             </h1>
             <p className="text-muted-foreground text-sm font-medium">
-              Sheet: {canvasDim.width}x{canvasDim.height}in • High Precision 300 DPI Rendering
+              Format: {canvasDim.width}x{canvasDim.height}in • Original Quality 300 DPI Rendering
             </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
             <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="rounded-full shadow-sm">
+                <Button variant="outline" className="rounded-full">
                   <Ruler className="mr-2 h-4 w-4" /> Canvas Format
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Physical Canvas Bounds</DialogTitle>
-                  <DialogDescription>Set the paper size in inches for high-fidelity rendering.</DialogDescription>
+                  <DialogTitle>Physical Canvas Dimensions</DialogTitle>
                 </DialogHeader>
                 <div className="grid grid-cols-2 gap-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor="c-width">Width (in)</Label>
-                    <Input id="c-width" type="number" value={canvasDim.width} onChange={(e) => setCanvasDim({...canvasDim, width: Number(e.target.value)})} />
+                    <Label>Width (in)</Label>
+                    <Input type="number" value={canvasDim.width} onChange={(e) => setCanvasDim({...canvasDim, width: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="c-height">Height (in)</Label>
-                    <Input id="c-height" type="number" value={canvasDim.height} onChange={(e) => setCanvasDim({...canvasDim, height: Number(e.target.value)})} />
+                    <Label>Height (in)</Label>
+                    <Input type="number" value={canvasDim.height} onChange={(e) => setCanvasDim({...canvasDim, height: Number(e.target.value)})} />
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button onClick={saveCanvasSettings} className="w-full">
-                    <Save className="mr-2 h-4 w-4" /> Save Preferences
-                  </Button>
+                  <Button onClick={() => {
+                    if (user && db) {
+                      setDocumentNonBlocking(doc(db, 'users', user.uid), { preferredCanvasSize: canvasDim }, { merge: true });
+                    }
+                    setIsSettingsOpen(false);
+                  }} className="w-full">Save Format</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
 
             <Dialog open={isDistributionOpen} onOpenChange={setIsDistributionOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-primary hover:bg-primary/90 text-white font-bold rounded-full shadow-lg">
-                  <Layers className="mr-2 h-4 w-4" /> Targeted Distribution
+                <Button className="rounded-full font-bold shadow-lg">
+                  <Layers className="mr-2 h-4 w-4" /> Bulk Upload
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Targeted Slot Distribution</DialogTitle>
-                  <DialogDescription>Input slot numbers (e.g. 1, 3, 4). Columns sync photo quality.</DialogDescription>
+                  <DialogTitle>Targeted Bulk Upload</DialogTitle>
+                  <DialogDescription>Input slot numbers (e.g. 1, 3, 4) to assign photos.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
                     <Label>Target Slots (1-{totalSlots}):</Label>
-                    <Input placeholder="e.g., 2, 5, 6" value={targetSlotString} onChange={(e) => setTargetSlotString(e.target.value)} />
+                    <Input placeholder="e.g., 2, 5, 8" value={targetSlotString} onChange={(e) => setTargetSlotString(e.target.value)} />
                   </div>
                   <div 
                     className="border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-accent/50 transition-colors"
@@ -627,13 +584,13 @@ export default function GridMakerPage() {
                   >
                     <Plus className="h-8 w-8 text-muted-foreground" />
                     <p className="text-xs font-medium">
-                      {bulkFiles.length > 0 ? `${bulkFiles.length} photos selected` : "Select Photos for Assigned Slots"}
+                      {bulkFiles.length > 0 ? `${bulkFiles.length} photos selected` : "Select Photos"}
                     </p>
                     <input type="file" multiple ref={bulkInputRef} className="hidden" onChange={handleBulkFileChange} accept="image/*" />
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button onClick={handleProcessBulk} className="w-full h-12">Process and Upload</Button>
+                  <Button onClick={handleProcessBulk} className="w-full">Distribute Photos</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -642,27 +599,27 @@ export default function GridMakerPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           <div className="lg:col-span-4 space-y-6">
-            <Card className="shadow-xl border-none bg-white">
+            <Card className="shadow-xl border-none">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <LayoutGrid className="h-5 w-5 text-primary" /> Grid Controls
+                  <LayoutGrid className="h-5 w-5 text-primary" /> Configuration
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Columns</Label>
-                    <Input type="number" min={1} max={12} value={numCols} onChange={(e) => setNumCols(Math.max(1, parseInt(e.target.value) || 1))} className="rounded-xl" />
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground">Columns</Label>
+                    <Input type="number" value={numCols} onChange={(e) => setNumCols(Math.max(1, parseInt(e.target.value) || 1))} />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Rows</Label>
-                    <Input type="number" min={1} max={12} value={numRows} onChange={(e) => setNumRows(Math.max(1, parseInt(e.target.value) || 1))} className="rounded-xl" />
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground">Rows</Label>
+                    <Input type="number" value={numRows} onChange={(e) => setNumRows(Math.max(1, parseInt(e.target.value) || 1))} />
                   </div>
                 </div>
 
                 <div className="space-y-4 pt-4 border-t">
                   <div className="flex items-center justify-between">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Photo Size</Label>
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground">Target Photo Size</Label>
                     <Dialog open={isAddSizeOpen} onOpenChange={(open) => {
                       setIsAddSizeOpen(open);
                       if (!open) {
@@ -677,16 +634,12 @@ export default function GridMakerPage() {
                       </DialogTrigger>
                       <DialogContent className="sm:max-w-md">
                         <DialogHeader>
-                          <DialogTitle>{editingSizeId ? 'Edit' : 'Add'} Custom Passport Size</DialogTitle>
+                          <DialogTitle>{editingSizeId ? 'Edit' : 'Add'} Size</DialogTitle>
                         </DialogHeader>
                         <div className="space-y-4 py-4">
                           <div className="space-y-2">
-                            <Label htmlFor="size-name">Name</Label>
-                            <Input id="size-name" placeholder="e.g., Visa Application" value={newSize.name} onChange={(e) => setNewSize({...newSize, name: e.target.value})} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="size-desc">Description</Label>
-                            <Textarea id="size-desc" placeholder="Purpose..." value={newSize.description} onChange={(e) => setNewSize({...newSize, description: e.target.value})} />
+                            <Label>Name</Label>
+                            <Input placeholder="e.g., My Visa Size" value={newSize.name} onChange={(e) => setNewSize({...newSize, name: e.target.value})} />
                           </div>
                           <div className="space-y-3">
                             <Label>Dimensions</Label>
@@ -700,18 +653,17 @@ export default function GridMakerPage() {
                             </Tabs>
                             <div className="grid grid-cols-2 gap-4">
                               <div className="space-y-2">
-                                <Label className="text-xs text-muted-foreground uppercase">Width ({newSize.unit})</Label>
-                                <Input type="number" step={newSize.unit === 'px' || newSize.unit === 'mm' ? "1" : "0.01"} value={newSize.width} onChange={(e) => setNewSize({...newSize, width: Number(e.target.value)})} />
+                                <Label className="text-xs uppercase">Width</Label>
+                                <Input type="number" value={newSize.width} onChange={(e) => setNewSize({...newSize, width: Number(e.target.value)})} />
                               </div>
                               <div className="space-y-2">
-                                <Label className="text-xs text-muted-foreground uppercase">Height ({newSize.unit})</Label>
-                                <Input type="number" step={newSize.unit === 'px' || newSize.unit === 'mm' ? "1" : "0.01"} value={newSize.height} onChange={(e) => setNewSize({...newSize, height: Number(e.target.value)})} />
+                                <Label className="text-xs uppercase">Height</Label>
+                                <Input type="number" value={newSize.height} onChange={(e) => setNewSize({...newSize, height: Number(e.target.value)})} />
                               </div>
                             </div>
                           </div>
                         </div>
                         <DialogFooter>
-                          <Button variant="outline" onClick={() => setIsAddSizeOpen(false)}>Cancel</Button>
                           <Button onClick={handleSaveCustomSize}>Save Size</Button>
                         </DialogFooter>
                       </DialogContent>
@@ -720,58 +672,22 @@ export default function GridMakerPage() {
                   
                   <div className="flex gap-2">
                     <Select value={selectedSizeId} onValueChange={handleSizeChange}>
-                      <SelectTrigger className="w-full rounded-xl">
-                        <SelectValue placeholder={isSizesLoading ? "Loading sizes..." : "Select photo size"}>
-                          {isSizesLoading ? (
-                            <div className="flex items-center gap-2">
-                              <Loader2 className="h-3 w-3 animate-spin" /> Loading...
-                            </div>
-                          ) : (
-                            customSizes?.find(s => s.id === selectedSizeId)?.name || "Select size"
-                          )}
-                        </SelectValue>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select size" />
                       </SelectTrigger>
                       <SelectContent>
-                        {isSizesLoading ? (
-                          <div className="flex items-center justify-center py-4">
-                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                          </div>
-                        ) : (
-                          customSizes?.map(size => (
-                            <SelectItem key={size.id} value={size.id}>
-                              {size.name} ({size.widthCm}x{size.heightCm}cm)
-                            </SelectItem>
-                          ))
-                        )}
+                        {customSizes?.map(size => (
+                          <SelectItem key={size.id} value={size.id}>
+                            {size.name} ({size.widthCm}x{size.heightCm}cm)
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
-                    {customSizes?.find(s => s.id === selectedSizeId) && (
-                      <Button 
-                        variant="outline" 
-                        size="icon" 
-                        className="rounded-xl shrink-0" 
-                        onClick={() => handleEditSize(customSizes.find(s => s.id === selectedSizeId)!)}
-                        title="Edit size"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    )}
-                    {customSizes?.find(s => s.id === selectedSizeId) && (
-                      <Button 
-                        variant="outline" 
-                        size="icon" 
-                        className="rounded-xl shrink-0 text-destructive hover:bg-destructive/10" 
-                        onClick={() => handleDeleteSize(selectedSizeId)}
-                        title="Delete size"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
                   </div>
                 </div>
 
                 <div className="space-y-3 pt-4 border-t">
-                  <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Interactive Slots ({numCols}x{numRows})</Label>
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Interactive Grid Slots ({totalSlots})</Label>
                   <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${numCols}, 1fr)` }}>
                     {slots.map((slot, i) => (
                       <div key={i} className="relative group">
@@ -779,14 +695,14 @@ export default function GridMakerPage() {
                           className={cn(
                             "aspect-[35/45] w-full border-2 border-dashed rounded-lg flex flex-col items-center justify-center overflow-hidden transition-all bg-muted/10 cursor-pointer",
                             slot.url ? "border-solid border-primary bg-white shadow-sm" : "border-muted",
-                            activeSlot === i && "ring-2 ring-primary ring-offset-2"
+                            activeSlot === i && "ring-2 ring-primary"
                           )}
                           onClick={() => handleSlotClick(i)}
                         >
                           {slot.url ? (
                             <div className="relative w-full h-full group/image">
                               <Image src={slot.url} alt={`Slot ${i+1}`} fill className="object-cover" />
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/image:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/image:opacity-100 transition-opacity flex items-center justify-center">
                                 <Button variant="destructive" size="icon" className="h-8 w-8 rounded-full" onClick={(e) => { e.stopPropagation(); handleRemove(i); }}>
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
@@ -801,14 +717,14 @@ export default function GridMakerPage() {
                 </div>
 
                 <div className="pt-6 border-t space-y-3">
-                  <Button className="w-full h-12 font-bold bg-secondary hover:bg-secondary/90 shadow-md text-white" onClick={downloadPNG} disabled={!slots.some(s => s.url)}>
-                    <Download className="mr-2 h-4 w-4" /> Download HD PNG
+                  <Button className="w-full h-12 font-bold bg-secondary hover:bg-secondary/90 text-white shadow-md" onClick={downloadPNG} disabled={!slots.some(s => s.url)}>
+                    <Download className="mr-2 h-4 w-4" /> Export HD PNG
                   </Button>
                   <Button className="w-full h-12 font-bold shadow-md" onClick={downloadJPG} disabled={!slots.some(s => s.url)}>
-                    <FileImage className="mr-2 h-4 w-4" /> Download HD JPG
+                    <FileImage className="mr-2 h-4 w-4" /> Export HD JPG
                   </Button>
-                  <Button variant="outline" className="w-full h-12 font-bold border-2" onClick={downloadPDF} disabled={!slots.some(s => s.url)}>
-                    <FileText className="mr-2 h-5 w-5" /> Download HD PDF
+                  <Button variant="outline" className="w-full h-12 font-bold" onClick={downloadPDF} disabled={!slots.some(s => s.url)}>
+                    <FileText className="mr-2 h-5 w-5" /> Export HD PDF
                   </Button>
                 </div>
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
@@ -827,7 +743,7 @@ export default function GridMakerPage() {
                   {!slots.some(s => s.url) && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300 pointer-events-none">
                       <Camera className="h-16 w-16 mb-4 opacity-20" />
-                      <p className="text-sm font-bold uppercase tracking-[0.2em] opacity-40">HD Preview Ready</p>
+                      <p className="text-sm font-bold uppercase tracking-[0.2em] opacity-40">HD Canvas Ready</p>
                     </div>
                   )}
                 </div>
@@ -839,4 +755,3 @@ export default function GridMakerPage() {
     </div>
   );
 }
-
