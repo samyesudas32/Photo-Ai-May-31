@@ -18,7 +18,10 @@ import {
   Move,
   ZoomIn,
   CheckCircle2,
-  Maximize2
+  Maximize2,
+  LayoutGrid,
+  Columns as ColumnsIcon,
+  Rows as RowsIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -48,6 +51,7 @@ export default function GridMakerPage() {
   const [photoCount, setPhotoCount] = useState<number>(8);
   const [cols, setCols] = useState(4);
   const [rows, setRows] = useState(2);
+  const [isAutoArrange, setIsAutoArrange] = useState(true);
   
   // Layout Controls
   const [margin, setMargin] = useState(40); 
@@ -65,11 +69,13 @@ export default function GridMakerPage() {
 
   // Auto-arrange logic
   useEffect(() => {
+    if (!isAutoArrange) return;
+    
     if (photoCount <= 2) { setCols(2); setRows(1); }
     else if (photoCount <= 4) { setCols(2); setRows(2); }
     else if (photoCount <= 6) { setCols(3); setRows(2); }
-    else { setCols(4); setRows(2); } // 8 is 4x2
-  }, [photoCount]);
+    else { setCols(4); setRows(2); }
+  }, [photoCount, isAutoArrange]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -83,7 +89,7 @@ export default function GridMakerPage() {
           setOffsetY(0);
           toast({
             title: "Photo Uploaded",
-            description: `Generating 6x4 grid with ${photoCount} copies.`,
+            description: `Generating 6x4 grid layout.`,
           });
         };
         reader.readAsDataURL(file);
@@ -123,22 +129,27 @@ export default function GridMakerPage() {
           const y = margin + r * (cellHeight + spacing);
 
           // 1. Calculate the Image Area (Inside the white border and stroke)
-          // Total reduction = Stroke + White Border on each side
-          const reduction = (WHITE_BORDER_PX + BLACK_STROKE_PX);
+          const reduction = (WHITE_BORDER_PX + (showBorders ? BLACK_STROKE_PX : 0));
           const imageAreaWidth = cellWidth - (reduction * 2);
           const imageAreaHeight = cellHeight - (reduction * 2);
           const imageAreaX = x + reduction;
           const imageAreaY = y + reduction;
 
-          // 2. Draw Black Stroke (The outermost frame of the photo block)
+          // 2. Draw Black Stroke (Outer frame)
           if (showBorders) {
             ctx.fillStyle = "#000000";
             ctx.fillRect(x, y, cellWidth, cellHeight);
           }
 
-          // 3. Draw White Border (Whiteboard style)
+          // 3. Draw White Border (Inner frame)
           ctx.fillStyle = "#FFFFFF";
-          ctx.fillRect(x + BLACK_STROKE_PX, y + BLACK_STROKE_PX, cellWidth - (BLACK_STROKE_PX * 2), cellHeight - (BLACK_STROKE_PX * 2));
+          const strokeReduction = showBorders ? BLACK_STROKE_PX : 0;
+          ctx.fillRect(
+            x + strokeReduction, 
+            y + strokeReduction, 
+            cellWidth - (strokeReduction * 2), 
+            cellHeight - (strokeReduction * 2)
+          );
 
           // 4. Draw the actual photo inside
           ctx.save();
@@ -242,14 +253,31 @@ export default function GridMakerPage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-4">
-                  <Label className="text-xs font-bold uppercase text-muted-foreground">Photo Copies</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold uppercase text-muted-foreground">Photo Copies</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-muted-foreground">Auto-Arrange</span>
+                      <Switch 
+                        checked={isAutoArrange} 
+                        onCheckedChange={setIsAutoArrange}
+                        className="scale-75"
+                      />
+                    </div>
+                  </div>
+                  
                   <div className="grid grid-cols-4 gap-2">
                     {[2, 4, 6, 8].map((count) => (
                       <Button
                         key={count}
                         variant={photoCount === count ? "default" : "outline"}
-                        className="font-bold h-12"
-                        onClick={() => setPhotoCount(count)}
+                        className="font-bold h-10"
+                        onClick={() => {
+                          setPhotoCount(count);
+                          if (!isAutoArrange) {
+                            // If auto-arrange is off, we still might want to ensure rows/cols can fit this
+                            // but usually manual means manual. We'll just set count.
+                          }
+                        }}
                         disabled={!sourceImage}
                       >
                         {count}
@@ -258,8 +286,8 @@ export default function GridMakerPage() {
                   </div>
                   
                   <div className="flex items-center justify-between pt-2">
-                    <Label className="text-sm font-semibold">Manual Adjustment</Label>
-                    <div className="flex items-center gap-3">
+                    <Label className="text-sm font-semibold">Total Copies</Label>
+                    <div className="flex items-center gap-2">
                       <Button 
                         variant="outline" 
                         size="icon" 
@@ -272,9 +300,9 @@ export default function GridMakerPage() {
                       <Input 
                         type="number"
                         min={1}
-                        max={12}
+                        max={32}
                         value={photoCount}
-                        onChange={(e) => setPhotoCount(Math.max(1, Math.min(12, parseInt(e.target.value) || 1)))}
+                        onChange={(e) => setPhotoCount(Math.max(1, Math.min(32, parseInt(e.target.value) || 1)))}
                         className="h-8 w-14 text-center font-bold"
                         disabled={!sourceImage}
                       />
@@ -282,8 +310,8 @@ export default function GridMakerPage() {
                         variant="outline" 
                         size="icon" 
                         className="h-8 w-8 rounded-full"
-                        onClick={() => setPhotoCount(Math.min(12, photoCount + 1))}
-                        disabled={!sourceImage || photoCount >= 12}
+                        onClick={() => setPhotoCount(Math.min(32, photoCount + 1))}
+                        disabled={!sourceImage || photoCount >= 32}
                       >
                         <Plus className="h-3 w-3" />
                       </Button>
@@ -293,13 +321,89 @@ export default function GridMakerPage() {
 
                 <div className="space-y-4 pt-6 border-t">
                   <Label className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
-                    <Move className="h-3 w-3" /> Crop & Framing
+                    <LayoutGrid className="h-3 w-3" /> Manual Layout Adjust
+                  </Label>
+                  
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium flex items-center gap-1">
+                          <ColumnsIcon className="h-3 w-3" /> Columns
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="icon" 
+                            className="h-7 w-7 rounded-md"
+                            onClick={() => {
+                              setIsAutoArrange(false);
+                              setCols(Math.max(1, cols - 1));
+                            }}
+                            disabled={!sourceImage || cols <= 1}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <span className="text-sm font-bold w-4 text-center">{cols}</span>
+                          <Button 
+                            variant="outline" 
+                            size="icon" 
+                            className="h-7 w-7 rounded-md"
+                            onClick={() => {
+                              setIsAutoArrange(false);
+                              setCols(Math.min(8, cols + 1));
+                            }}
+                            disabled={!sourceImage || cols >= 8}
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium flex items-center gap-1">
+                          <RowsIcon className="h-3 w-3" /> Rows
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="icon" 
+                            className="h-7 w-7 rounded-md"
+                            onClick={() => {
+                              setIsAutoArrange(false);
+                              setRows(Math.max(1, rows - 1));
+                            }}
+                            disabled={!sourceImage || rows <= 1}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <span className="text-sm font-bold w-4 text-center">{rows}</span>
+                          <Button 
+                            variant="outline" 
+                            size="icon" 
+                            className="h-7 w-7 rounded-md"
+                            onClick={() => {
+                              setIsAutoArrange(false);
+                              setRows(Math.min(6, rows + 1));
+                            }}
+                            disabled={!sourceImage || rows >= 6}
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-6 border-t">
+                  <Label className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
+                    <Move className="h-3 w-3" /> Crop & Reposition
                   </Label>
                   
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <div className="flex justify-between">
-                        <span className="text-xs flex items-center gap-1">Zoom Scale</span>
+                        <span className="text-xs">Zoom</span>
                         <span className="text-[10px] font-mono">{zoom}%</span>
                       </div>
                       <Slider 
@@ -432,7 +536,7 @@ export default function GridMakerPage() {
                       { label: "Paper Size", val: "6 x 4 in" },
                       { label: "Resolution", val: "300 DPI" },
                       { label: "Pixel Output", val: "1800 x 1200" },
-                      { label: "Layout Mode", val: `${photoCount} Copies` }
+                      { label: "Layout Mode", val: `${cols}x${rows} Grid` }
                     ].map((spec, i) => (
                       <div key={i} className="text-center space-y-1.5">
                         <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">{spec.label}</p>
@@ -465,11 +569,11 @@ export default function GridMakerPage() {
               </div>
               <div className="flex items-start gap-4 p-5 bg-white rounded-2xl border shadow-sm">
                 <div className="h-10 w-10 rounded-xl bg-purple-500/10 flex items-center justify-center shrink-0">
-                  <Move className="h-5 w-5 text-purple-600" />
+                  <LayoutGrid className="h-5 w-5 text-purple-600" />
                 </div>
                 <div className="space-y-1">
-                  <h4 className="font-bold text-sm uppercase tracking-tight">Dynamic Grid</h4>
-                  <p className="text-xs text-muted-foreground leading-relaxed">Auto-arranging layouts for 2, 4, 6, or 8 copies with smart crop repositioning.</p>
+                  <h4 className="font-bold text-sm uppercase tracking-tight">Manual Grid</h4>
+                  <p className="text-xs text-muted-foreground leading-relaxed">Manually adjust rows and columns to fit your specific printing needs.</p>
                 </div>
               </div>
             </div>
