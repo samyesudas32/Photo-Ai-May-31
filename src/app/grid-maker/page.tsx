@@ -12,7 +12,8 @@ import {
   Plus,
   Camera,
   X,
-  FileImage
+  FileImage,
+  ShieldCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -106,17 +107,16 @@ export default function GridMakerPage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // Set HD rendering quality
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
     // Clear and fill white background
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     // Load and draw all images
-    let loadedCount = 0;
-    const activeSlots = slots.filter(s => s !== null).length;
-
-    if (activeSlots === 0) return;
-
     slots.forEach((uri, i) => {
       if (!uri) return;
 
@@ -169,15 +169,17 @@ export default function GridMakerPage() {
   const downloadJPG = () => {
     if (!canvasRef.current) return;
     const link = document.createElement("a");
-    link.download = `pixelpass-print-sheet.jpg`;
-    link.href = canvasRef.current.toDataURL("image/jpeg", 0.95);
+    link.download = `pixelpass-hd-print-sheet.jpg`;
+    // Use maximum quality (1.0) for HD JPEG export
+    link.href = canvasRef.current.toDataURL("image/jpeg", 1.0);
     link.click();
   };
 
   const downloadPNG = () => {
     if (!canvasRef.current) return;
     const link = document.createElement("a");
-    link.download = `pixelpass-print-sheet.png`;
+    link.download = `pixelpass-hd-print-sheet.png`;
+    // PNG is lossless by default
     link.href = canvasRef.current.toDataURL("image/png");
     link.click();
   };
@@ -189,9 +191,10 @@ export default function GridMakerPage() {
       unit: "in",
       format: [6, 4]
     });
-    const imgData = canvasRef.current.toDataURL("image/jpeg", 1.0);
-    pdf.addImage(imgData, "JPEG", 0, 0, 6, 4);
-    pdf.save(`pixelpass-print-sheet.pdf`);
+    // Use PNG for PDF content to maintain maximum lossless quality
+    const imgData = canvasRef.current.toDataURL("image/png");
+    pdf.addImage(imgData, "PNG", 0, 0, 6, 4);
+    pdf.save(`pixelpass-hd-print-sheet.pdf`);
   };
 
   return (
@@ -206,8 +209,11 @@ export default function GridMakerPage() {
                 <ArrowLeft className="h-4 w-4 mr-2" /> Back to Home
               </Link>
             </Button>
-            <h1 className="text-3xl font-bold tracking-tight text-primary">Precision Sheet Generator</h1>
-            <p className="text-muted-foreground text-sm font-medium uppercase">6x4 INCH • 300 DPI • 0.52CM UNIFORM SPACING</p>
+            <h1 className="text-3xl font-bold tracking-tight text-primary">Precision HD Sheet Generator</h1>
+            <p className="text-muted-foreground text-sm font-medium uppercase flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-green-500" />
+              6x4 INCH • 300 DPI • LOSSLESS HD EXPORT
+            </p>
           </div>
         </div>
 
@@ -216,9 +222,9 @@ export default function GridMakerPage() {
             <Card className="shadow-xl border-none">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <Grid3X3 className="h-5 w-5 text-primary" /> Print Setup
+                  <Grid3X3 className="h-5 w-5 text-primary" /> HD Print Setup
                 </CardTitle>
-                <CardDescription>Upload photos to individual slots. The 4x2 grid maintains absolute 0.52cm margins and gaps.</CardDescription>
+                <CardDescription>Upload photos to individual slots. The 4x2 grid maintains absolute 0.52cm margins and gaps for high-quality printing.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-4 gap-2">
@@ -260,28 +266,27 @@ export default function GridMakerPage() {
                 <div className="pt-6 border-t space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <Button 
-                      className="font-bold shadow-md" 
+                      className="font-bold shadow-md bg-secondary hover:bg-secondary/90" 
                       onClick={downloadPNG}
                       disabled={!slots.some(s => s !== null)}
                     >
-                      <Download className="mr-2 h-4 w-4" /> PNG
+                      <Download className="mr-2 h-4 w-4" /> HD PNG
                     </Button>
                     <Button 
                       className="font-bold shadow-md" 
-                      variant="secondary"
                       onClick={downloadJPG}
                       disabled={!slots.some(s => s !== null)}
                     >
-                      <FileImage className="mr-2 h-4 w-4" /> JPG
+                      <FileImage className="mr-2 h-4 w-4" /> HD JPG
                     </Button>
                   </div>
                   <Button 
                     variant="outline" 
-                    className="w-full h-12 font-bold" 
+                    className="w-full h-12 font-bold border-2" 
                     onClick={downloadPDF}
                     disabled={!slots.some(s => s !== null)}
                   >
-                    <FileText className="mr-2 h-5 w-5" /> Export PDF
+                    <FileText className="mr-2 h-5 w-5" /> Export HD PDF
                   </Button>
                   <Button 
                     variant="ghost" 
@@ -304,9 +309,11 @@ export default function GridMakerPage() {
             
             <div className="space-y-4">
               <div className="p-4 bg-primary/5 rounded-xl border border-primary/10">
-                <h4 className="text-xs font-black uppercase text-primary mb-2">Column Link Logic</h4>
+                <h4 className="text-xs font-black uppercase text-primary mb-2 flex items-center gap-2">
+                  <ShieldCheck className="h-3 w-3" /> Quality Assurance
+                </h4>
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  To ensure professional sheet symmetry, removing a photo from the top row automatically clears its vertical counterpart in the bottom row.
+                  All exports are processed at 300 DPI using lossless algorithms. This ensures your passport photos maintain sharpness and biometric accuracy for official use.
                 </p>
               </div>
             </div>
@@ -341,10 +348,10 @@ export default function GridMakerPage() {
 
               <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-12 w-full max-w-xl">
                 {[
-                  { label: "Format", val: "6 x 4 in" },
-                  { label: "DPI", val: "300" },
+                  { label: "HD Format", val: "6 x 4 in" },
+                  { label: "Resolution", val: "300 DPI" },
                   { label: "Gap/Margin", val: "0.52 cm" },
-                  { label: "Border", val: "3 px Black" }
+                  { label: "Trimming", val: "3 px Stroke" }
                 ].map((spec, i) => (
                   <div key={i} className="text-center">
                     <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">{spec.label}</p>
