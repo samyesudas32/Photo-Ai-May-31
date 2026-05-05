@@ -19,7 +19,8 @@ import {
   CheckCircle2,
   Loader2,
   RefreshCw,
-  MoveHorizontal
+  MoveHorizontal,
+  RotateCcw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -59,6 +60,7 @@ import { Select, SelectContent, SelectItem, SelectValue, SelectTrigger } from "@
 // CONSTANTS - High Precision 300 DPI for Professional Printing
 const DPI = 300;
 const CM_TO_PX = DPI / 2.54;
+const DEFAULT_SPACING = 0.3;
 
 type Unit = 'cm' | 'mm' | 'in' | 'px';
 
@@ -93,7 +95,7 @@ export default function GridMakerPage() {
   const [canvasDim, setCanvasDim] = useState({ width: 6, height: 4 }); // In inches
   const [numCols, setNumCols] = useState(4);
   const [numRows, setNumRows] = useState(2);
-  const [spacingCm, setSpacingCm] = useState(0.3); // Manual gap control
+  const [spacingCm, setSpacingCm] = useState(DEFAULT_SPACING); // Manual gap control
   const [selectedSizeId, setSelectedSizeId] = useState<string>('default-passport');
   
   const totalSlots = useMemo(() => numCols * numRows, [numCols, numRows]);
@@ -337,10 +339,15 @@ export default function GridMakerPage() {
 
   const resetGrid = () => {
     setSlots(Array(totalSlots).fill(null).map(() => DEFAULT_SLOT_DATA(selectedSizeId)));
-    setSpacingCm(0.3);
+    setSpacingCm(DEFAULT_SPACING);
     setNumCols(4);
     setNumRows(2);
     toast({ title: "Grid Reset", description: "All slots cleared and settings returned to default." });
+  };
+
+  const resetGap = () => {
+    setSpacingCm(DEFAULT_SPACING);
+    toast({ title: "Gap Reset", description: "Spacing returned to default 0.3cm." });
   };
 
   const convertToCm = (val: number, fromUnit: Unit): number => {
@@ -655,7 +662,18 @@ export default function GridMakerPage() {
 
                 <div className="space-y-4 pt-4 border-t">
                   <div className="flex items-center justify-between">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground">Photo Gap (cm)</Label>
+                    <div className="flex items-center gap-2">
+                      <Label className="text-[10px] font-black uppercase text-muted-foreground">Photo Gap (cm)</Label>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-4 w-4 rounded-full text-muted-foreground hover:text-primary"
+                        onClick={resetGap}
+                        title="Reset gap to 0.3cm"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                      </Button>
+                    </div>
                     <span className="text-[10px] font-bold text-primary">{spacingCm}cm</span>
                   </div>
                   <div className="flex gap-4 items-center">
