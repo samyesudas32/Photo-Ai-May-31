@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -19,7 +18,8 @@ import {
   Pencil,
   Ruler,
   GripVertical,
-  Square
+  Square,
+  Palette
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -33,6 +33,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Slider } from "@/components/ui/slider";
 import { 
   Dialog, 
   DialogContent, 
@@ -203,7 +204,12 @@ export default function EditorPage() {
   const [selectedStyle, setSelectedStyle] = useState<CoatStyle>('none');
   const [selectedSizeId, setSelectedSizeId] = useState<string>('');
   const [selectedBgColor, setSelectedBgColor] = useState<string>('#FFFFFF');
+  
+  // Photo Styling states
   const [hasStroke, setHasStroke] = useState(false);
+  const [strokeColor, setStrokeColor] = useState("#000000");
+  const [strokeWidth, setStrokeWidth] = useState(3);
+
   const [isAddSizeOpen, setIsAddSizeOpen] = useState(false);
   const [editingSizeId, setEditingSizeId] = useState<string | null>(null);
   
@@ -580,10 +586,13 @@ export default function EditorPage() {
                       <div className="absolute top-4 left-4 z-10 bg-secondary text-white text-[10px] font-bold px-2 py-0.5 rounded-sm shadow-sm">
                         PROCESSED
                       </div>
-                      <div className={cn(
-                        "relative w-full h-full",
-                        hasStroke && "border-[3px] border-black"
-                      )}>
+                      <div 
+                        className="relative w-full h-full"
+                        style={hasStroke ? { 
+                          border: `${strokeWidth}px solid ${strokeColor}`,
+                          boxSizing: 'border-box'
+                        } : {}}
+                      >
                         <Image 
                           src={processedUrl} 
                           alt="Processed" 
@@ -713,18 +722,54 @@ export default function EditorPage() {
 
                 <div className="space-y-4 pt-4 border-t">
                   <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Photo Styling</Label>
-                  <Button
-                    variant={hasStroke ? "default" : "outline"}
-                    className="w-full justify-start gap-2"
-                    onClick={() => setHasStroke(!hasStroke)}
-                    disabled={isProcessing}
-                  >
-                    <Square className={cn(
-                      "h-4 w-4",
-                      hasStroke ? "fill-current" : ""
-                    )} />
-                    {hasStroke ? "3px Black Stroke Applied" : "Add 3px Black Stroke"}
-                  </Button>
+                  <div className="space-y-4">
+                    <Button
+                      variant={hasStroke ? "default" : "outline"}
+                      className="w-full justify-start gap-2"
+                      onClick={() => setHasStroke(!hasStroke)}
+                      disabled={isProcessing}
+                    >
+                      <Square className={cn(
+                        "h-4 w-4",
+                        hasStroke ? "fill-current" : ""
+                      )} />
+                      {hasStroke ? "Stroke Applied" : "Add Photo Stroke"}
+                    </Button>
+
+                    {hasStroke && (
+                      <div className="space-y-4 p-4 rounded-lg bg-muted/30 border animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-[10px] font-black uppercase text-muted-foreground">Stroke Color</Label>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-mono text-muted-foreground">{strokeColor}</span>
+                              <Input 
+                                type="color" 
+                                value={strokeColor} 
+                                onChange={(e) => setStrokeColor(e.target.value)}
+                                className="w-6 h-6 p-0 border-none bg-transparent cursor-pointer rounded-full overflow-hidden"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-[10px] font-black uppercase text-muted-foreground">Stroke Width</Label>
+                            <span className="text-[10px] font-bold text-primary">{strokeWidth}px</span>
+                          </div>
+                          <Slider 
+                            value={[strokeWidth]} 
+                            min={1} 
+                            max={10} 
+                            step={1} 
+                            onValueChange={(val) => setStrokeWidth(val[0])}
+                            className="py-2"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-4 pt-4 border-t">
@@ -771,7 +816,7 @@ export default function EditorPage() {
                             <Tabs value={newSize.unit} onValueChange={(v) => handleUnitChange(v as Unit)}>
                               <TabsList className="grid w-full grid-cols-4">
                                 <TabsTrigger value="mm">MM</TabsTrigger>
-                                <TabsTrigger value="cm">CM</TabsTrigger>
+                                <TabsTrigger value="cm">CM</TabsTrigger Cooper 
                                 <TabsTrigger value="in">IN</TabsTrigger>
                                 <TabsTrigger value="px">PX</TabsTrigger>
                               </TabsList>
