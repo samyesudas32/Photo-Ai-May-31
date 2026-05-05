@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -15,7 +16,8 @@ import {
   User,
   Briefcase,
   Plus,
-  Pencil
+  Pencil,
+  Ruler
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -82,7 +84,7 @@ export default function EditorPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [selectedStyle, setSelectedStyle] = useState<CoatStyle>('none');
-  const [selectedSizeId, setSelectedSizeId] = useState<string>('standard');
+  const [selectedSizeId, setSelectedSizeId] = useState<string>('');
   const [selectedBgColor, setSelectedBgColor] = useState<string>('#FFFFFF');
   const [isAddSizeOpen, setIsAddSizeOpen] = useState(false);
   const [editingSizeId, setEditingSizeId] = useState<string | null>(null);
@@ -90,9 +92,9 @@ export default function EditorPage() {
   const [newSize, setNewSize] = useState({
     name: '',
     description: '',
-    width: 5.1,
-    height: 5.1,
-    unit: 'cm' as Unit
+    width: 35,
+    height: 45,
+    unit: 'mm' as Unit
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -132,6 +134,40 @@ export default function EditorPage() {
       setSelectedBgColor(profile.lastSelectedBgColor);
     }
   }, [profile?.lastSelectedBgColor]);
+
+  const customSizesQuery = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return collection(db, 'users', user.uid, 'custom_passport_sizes');
+  }, [db, user]);
+
+  const { data: customSizes } = useCollection<CustomSize>(customSizesQuery);
+
+  // Seed default size for new users and handle selection
+  useEffect(() => {
+    if (user && db && customSizes && customSizes.length === 0) {
+      const sizeId = 'default-standard-passport';
+      setDocumentNonBlocking(
+        doc(db, 'users', user.uid, 'custom_passport_sizes', sizeId),
+        {
+          id: sizeId,
+          userId: user.uid,
+          name: 'Standard Passport',
+          description: 'Official 2x2 inch (5.1 x 5.1 cm)',
+          widthCm: 5.1,
+          heightCm: 5.1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        },
+        { merge: true }
+      );
+    }
+  }, [user, db, customSizes]);
+
+  useEffect(() => {
+    if (customSizes && customSizes.length > 0 && !selectedSizeId) {
+      setSelectedSizeId(customSizes[0].id);
+    }
+  }, [customSizes, selectedSizeId]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -177,8 +213,8 @@ export default function EditorPage() {
     setNewSize(prev => ({
       ...prev,
       unit: nextUnit,
-      width: Number(convertFromCm(currentWidthInCm, nextUnit).toFixed(2)),
-      height: Number(convertFromCm(currentHeightInCm, nextUnit).toFixed(2))
+      width: nextUnit === 'mm' || nextUnit === 'px' ? Math.round(convertFromCm(currentWidthInCm, nextUnit)) : Number(convertFromCm(currentWidthInCm, nextUnit).toFixed(2)),
+      height: nextUnit === 'mm' || nextUnit === 'px' ? Math.round(convertFromCm(currentHeightInCm, nextUnit)) : Number(convertFromCm(currentHeightInCm, nextUnit).toFixed(2))
     }));
   };
 
@@ -216,7 +252,7 @@ export default function EditorPage() {
 
     setIsAddSizeOpen(false);
     setEditingSizeId(null);
-    setNewSize({ name: '', description: '', width: 5.1, height: 5.1, unit: 'cm' });
+    setNewSize({ name: '', description: '', width: 35, height: 45, unit: 'mm' });
     toast({
       title: editingSizeId ? "Size Updated" : "Size Saved",
       description: `Your custom passport size has been ${editingSizeId ? 'updated' : 'saved'}.`,
@@ -228,9 +264,9 @@ export default function EditorPage() {
     setNewSize({
       name: size.name,
       description: size.description,
-      width: size.widthCm,
-      height: size.heightCm,
-      unit: 'cm'
+      width: size.widthCm * 10,
+      height: size.heightCm * 10,
+      unit: 'mm'
     });
     setIsAddSizeOpen(true);
   };
@@ -239,11 +275,11 @@ export default function EditorPage() {
     if (!user || !db) return;
     deleteDocumentNonBlocking(doc(db, 'users', user.uid, 'custom_passport_sizes', sizeId));
     if (selectedSizeId === sizeId) {
-      setSelectedSizeId('standard');
+      setSelectedSizeId('');
     }
     toast({
       title: "Size Deleted",
-      description: "The custom size has been removed.",
+      description: "The size definition has been removed.",
     });
   };
 
@@ -259,13 +295,6 @@ export default function EditorPage() {
       }, { merge: true });
     }
   };
-
-  const customSizesQuery = useMemoFirebase(() => {
-    if (!db || !user) return null;
-    return collection(db, 'users', user.uid, 'custom_passport_sizes');
-  }, [db, user]);
-
-  const { data: customSizes } = useCollection<CustomSize>(customSizesQuery);
 
   const handleProcess = async () => {
     if (!previewUrl) return;
@@ -319,7 +348,7 @@ export default function EditorPage() {
     setProcessedUrl(null);
     setProgress(0);
     setSelectedStyle('none');
-    setSelectedSizeId('standard');
+    // We don't reset selectedSizeId as it's better to keep user preference
   };
 
   return (
@@ -512,12 +541,12 @@ export default function EditorPage() {
                       setIsAddSizeOpen(open);
                       if (!open) {
                         setEditingSizeId(null);
-                        setNewSize({ name: '', description: '', width: 5.1, height: 5.1, unit: 'cm' });
+                        setNewSize({ name: '', description: '', width: 35, height: 45, unit: 'mm' });
                       }
                     }}>
                       <DialogTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 px-2 text-primary">
-                          <Plus className="h-4 w-4 mr-1" /> Custom Size
+                        <Button variant="ghost" size="sm" className="h-8 px-2 text-primary font-bold">
+                          <Plus className="h-4 w-4 mr-1" /> New Size
                         </Button>
                       </DialogTrigger>
                       <DialogContent className="sm:max-w-md">
@@ -548,8 +577,8 @@ export default function EditorPage() {
                             <Label>Dimensions</Label>
                             <Tabs value={newSize.unit} onValueChange={(v) => handleUnitChange(v as Unit)}>
                               <TabsList className="grid w-full grid-cols-4">
-                                <TabsTrigger value="cm">CM</TabsTrigger>
                                 <TabsTrigger value="mm">MM</TabsTrigger>
+                                <TabsTrigger value="cm">CM</TabsTrigger>
                                 <TabsTrigger value="in">IN</TabsTrigger>
                                 <TabsTrigger value="px">PX</TabsTrigger>
                               </TabsList>
@@ -586,61 +615,77 @@ export default function EditorPage() {
                     </Dialog>
                   </div>
 
-                  <RadioGroup 
-                    value={selectedSizeId} 
-                    onValueChange={setSelectedSizeId}
-                    className="space-y-2"
-                  >
-                    <div className="flex items-center space-x-2 rounded-lg border p-3 hover:bg-accent cursor-pointer group">
-                      <RadioGroupItem value="standard" id="standard" />
-                      <Label htmlFor="standard" className="flex-1 cursor-pointer">
-                        <div className="font-semibold">Standard Passport</div>
-                        <div className="text-[10px] text-muted-foreground italic">Official 2x2 inch (5.1 x 5.1 cm)</div>
-                      </Label>
-                    </div>
-
-                    {customSizes?.map((size) => (
-                      <div key={size.id} className="flex items-center space-x-2 rounded-lg border p-3 hover:bg-accent cursor-pointer group relative">
-                        <RadioGroupItem value={size.id} id={size.id} />
-                        <Label htmlFor={size.id} className="flex-1 cursor-pointer">
-                          <div className="font-semibold">{size.name}</div>
-                          <div className="text-[10px] text-muted-foreground italic">
-                            {size.widthCm} x {size.heightCm} cm • {size.description}
-                          </div>
-                        </Label>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-7 w-7 text-muted-foreground hover:text-primary"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditSize(size);
-                            }}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteSize(size.id);
-                            }}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                    <RadioGroup 
+                      value={selectedSizeId} 
+                      onValueChange={setSelectedSizeId}
+                      className="space-y-3"
+                    >
+                      {customSizes?.length === 0 && !isProcessing && (
+                        <div className="text-center py-4 px-2 border-2 border-dashed rounded-lg bg-muted/20">
+                          <Ruler className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-50" />
+                          <p className="text-xs text-muted-foreground font-medium">No sizes defined. Create one to get started.</p>
                         </div>
-                      </div>
-                    ))}
-                  </RadioGroup>
+                      )}
+
+                      {customSizes?.map((size) => (
+                        <div key={size.id} className="group relative">
+                          <RadioGroupItem value={size.id} id={size.id} className="peer sr-only" />
+                          <Label 
+                            htmlFor={size.id} 
+                            className={cn(
+                              "flex items-center justify-between p-3 rounded-xl border-2 transition-all cursor-pointer bg-card hover:border-primary/50",
+                              selectedSizeId === size.id ? "border-primary bg-primary/5 shadow-sm" : "border-muted"
+                            )}
+                          >
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-sm">{size.name}</span>
+                                {selectedSizeId === size.id && <CheckCircle2 className="h-3 w-3 text-primary" />}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground font-medium mt-0.5">
+                                {size.widthCm} x {size.heightCm} cm
+                              </div>
+                              {size.description && (
+                                <div className="text-[9px] text-muted-foreground italic mt-1 line-clamp-1">{size.description}</div>
+                              )}
+                            </div>
+                            
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditSize(size);
+                                }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteSize(size.id);
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </Label>
+                        </div>
+                      ))}
+                    </RadioGroup>
+                  </div>
                 </div>
 
                 <div className="pt-6 border-t space-y-3">
                   {!processedUrl ? (
                     <Button 
-                      className="w-full h-12 text-lg font-bold" 
+                      className="w-full h-12 text-lg font-bold shadow-lg" 
                       onClick={handleProcess}
                       disabled={!previewUrl || isProcessing}
                     >
@@ -649,7 +694,7 @@ export default function EditorPage() {
                   ) : (
                     <div className="space-y-3">
                       <Button 
-                        className="w-full h-12 text-lg font-bold bg-green-600 hover:bg-green-700" 
+                        className="w-full h-12 text-lg font-bold bg-green-600 hover:bg-green-700 shadow-lg" 
                         onClick={handleDownload}
                       >
                         <Download className="mr-2 h-5 w-5" /> Download (Print Ready)
