@@ -10,12 +10,9 @@ import {
   Grid3X3, 
   FileText, 
   Image as ImageIcon,
-  Settings2,
   Trash2,
   Printer,
   Move,
-  CheckCircle2,
-  Maximize2,
   ChevronUp,
   ChevronDown
 } from "lucide-react";
@@ -23,7 +20,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
@@ -53,7 +49,6 @@ export default function GridMakerPage() {
   
   // Layout Controls
   const [margin, setMargin] = useState(60); 
-  const [showBorders, setShowBorders] = useState(true);
   
   // Crop Controls
   const [zoom, setZoom] = useState(100);
@@ -66,16 +61,13 @@ export default function GridMakerPage() {
 
   // GRID ENGINE: Auto-arrange logic
   useEffect(() => {
-    // Specifically support up to 4 columns as requested
+    // Specifically support up to 4 columns
     if (photoCount <= 2) { 
       setCols(photoCount); 
       setRows(1); 
     } else if (photoCount <= 4) { 
       setCols(2); 
       setRows(2); 
-    } else if (photoCount <= 8) {
-      setCols(4);
-      setRows(Math.ceil(photoCount / 4));
     } else {
       setCols(4);
       setRows(Math.ceil(photoCount / 4));
@@ -94,7 +86,7 @@ export default function GridMakerPage() {
           setOffsetY(0);
           toast({
             title: "Photo Uploaded",
-            description: `Generating 6x4 Grid with 0.52cm precision.`,
+            description: `Generating 6x4 Grid.`,
           });
         };
         reader.readAsDataURL(file);
@@ -134,14 +126,12 @@ export default function GridMakerPage() {
           const y = margin + r * (cellHeight + GRID_GAP_PX);
 
           // 1. Draw Black Stroke (Outer frame)
-          if (showBorders) {
-            ctx.fillStyle = "#000000";
-            ctx.fillRect(x, y, cellWidth, cellHeight);
-          }
+          ctx.fillStyle = "#000000";
+          ctx.fillRect(x, y, cellWidth, cellHeight);
 
           // 2. Draw White Border (Inner frame)
           ctx.fillStyle = "#FFFFFF";
-          const strokeReduction = showBorders ? BLACK_STROKE_PX : 0;
+          const strokeReduction = BLACK_STROKE_PX;
           ctx.fillRect(
             x + strokeReduction, 
             y + strokeReduction, 
@@ -184,7 +174,7 @@ export default function GridMakerPage() {
       }
     };
     img.src = sourceImage;
-  }, [sourceImage, photoCount, cols, rows, margin, showBorders, zoom, offsetX, offsetY]);
+  }, [sourceImage, photoCount, cols, rows, margin, zoom, offsetX, offsetY]);
 
   useEffect(() => {
     drawGrid();
@@ -225,12 +215,7 @@ export default function GridMakerPage() {
               </Link>
             </Button>
             <h1 className="text-3xl font-bold tracking-tight">Print Layout Generator</h1>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black bg-primary text-white px-2.5 py-1 rounded-sm uppercase tracking-widest">
-                6 x 4 in @ 300 DPI
-              </span>
-              <p className="text-muted-foreground text-sm font-medium">CSS Grid Precision Engine (0.52cm Gap)</p>
-            </div>
+            <p className="text-muted-foreground text-sm font-medium">Professional 6x4 sheet arranged at 300 DPI</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
@@ -272,7 +257,7 @@ export default function GridMakerPage() {
                   <div className="flex items-center justify-between pt-4 border-t">
                     <div className="space-y-0.5">
                       <Label className="text-sm font-semibold">Total Copies</Label>
-                      <p className="text-[10px] text-muted-foreground">Vertical Adjustment</p>
+                      <p className="text-[10px] text-muted-foreground">Manual Adjustment</p>
                     </div>
                     <div className="flex flex-col items-center gap-0">
                       <Button 
@@ -331,26 +316,13 @@ export default function GridMakerPage() {
                   </div>
                 </div>
 
-                <div className="space-y-6 pt-6 border-t">
-                  <Label className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
-                    <Settings2 className="h-3 w-3" /> Fixed Metrics
-                  </Label>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-medium">Grid Gap (CSS Engine)</span>
-                      <span className="bg-muted px-2 py-0.5 rounded font-mono">0.52 cm</span>
+                <div className="space-y-4 pt-6 border-t">
+                  <Label className="text-xs font-bold uppercase text-muted-foreground">Sheet Layout</Label>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-xs">Sheet Margins</span>
                     </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-medium">Photo Stroke</span>
-                      <span className="bg-muted px-2 py-0.5 rounded font-mono">3 px Solid</span>
-                    </div>
-                    <div className="space-y-2 pt-2">
-                      <div className="flex justify-between">
-                        <span className="text-xs">Sheet Margins</span>
-                        <span className="text-[10px] font-mono">Adjustable</span>
-                      </div>
-                      <Slider value={[margin]} min={0} max={200} onValueChange={(v) => setMargin(v[0])} disabled={!sourceImage} />
-                    </div>
+                    <Slider value={[margin]} min={0} max={200} onValueChange={(v) => setMargin(v[0])} disabled={!sourceImage} />
                   </div>
                 </div>
 
@@ -375,7 +347,7 @@ export default function GridMakerPage() {
                   </div>
                   <h3 className="text-3xl font-bold mb-3 tracking-tight">Print Layout Studio</h3>
                   <p className="text-muted-foreground max-w-sm mb-8 leading-relaxed">
-                    6x4 inch sheet @ 300 DPI. 0.52cm gaps and 3px borders applied automatically.
+                    Upload your photo to generate a print-ready 6x4 inch layout with professional borders and spacing.
                   </p>
                   <Button size="lg" className="rounded-full px-16 font-bold text-lg shadow-xl hover:scale-105 transition-transform">
                     Start New Sheet
@@ -395,17 +367,14 @@ export default function GridMakerPage() {
                         style={{ width: '100%', maxWidth: '700px' }}
                       />
                     </div>
-                    <div className="absolute -top-4 -left-4 bg-black text-white text-[10px] font-black px-6 py-2 rounded-full shadow-2xl uppercase tracking-[0.2em] z-10 border border-white/20">
-                      300 DPI GRID ENGINE
-                    </div>
                   </div>
                   
                   <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-8 w-full max-w-2xl border-t pt-8">
                     {[
                       { label: "Paper Size", val: "6 x 4 in" },
-                      { label: "Precision Gap", val: "0.52 cm" },
-                      { label: "Stroke", val: "3 px Black" },
-                      { label: "Layout Mode", val: `${cols} Cols (Fixed)` }
+                      { label: "Resolution", val: "300 DPI" },
+                      { label: "Stroke", val: "3 px Solid" },
+                      { label: "Copies", val: photoCount }
                     ].map((spec, i) => (
                       <div key={i} className="text-center space-y-1.5">
                         <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">{spec.label}</p>
