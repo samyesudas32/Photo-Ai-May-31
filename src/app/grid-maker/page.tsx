@@ -16,7 +16,8 @@ import {
   Settings2,
   Save,
   Ruler,
-  LayoutGrid
+  LayoutGrid,
+  Maximize
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -31,6 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
 import Link from "next/link";
@@ -51,7 +53,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 // CONSTANTS
 const DPI = 300;
 const CM_TO_PX = DPI / 2.54;
-const SPACING_PX = Math.round(0.52 * CM_TO_PX); // ~61px (0.52cm)
 
 interface CustomSize {
   id: string;
@@ -74,6 +75,7 @@ export default function GridMakerPage() {
   const [canvasDim, setCanvasDim] = useState({ width: 6, height: 4 }); // In inches
   const [numCols, setNumCols] = useState(4);
   const [numRows, setNumRows] = useState(2);
+  const [spacingCm, setSpacingCm] = useState(0.52); // Default gap
   const [selectedSizeId, setSelectedSizeId] = useState<string>('default-passport');
   
   const totalSlots = numCols * numRows;
@@ -124,6 +126,9 @@ export default function GridMakerPage() {
   useEffect(() => {
     if (profile?.preferredCanvasSize) {
       setCanvasDim(profile.preferredCanvasSize);
+    }
+    if (profile?.preferredSpacing !== undefined) {
+      setSpacingCm(profile.preferredSpacing);
     }
   }, [profile]);
 
@@ -228,16 +233,16 @@ export default function GridMakerPage() {
   const handleRemove = (index: number) => {
     const newSlots = [...slots];
     const colIndices = getColumnIndices(index);
-    // Remove the entire column to maintain vertical removal logic
+    // Vertical Removal Logic
     colIndices.forEach(idx => {
       newSlots[idx] = { url: null, sizeId: newSlots[idx].sizeId };
     });
     setSlots(newSlots);
+    toast({ title: "Column Removed", description: "Column cleared to maintain symmetry." });
   };
 
   const handleSizeChange = (newSizeId: string) => {
     setSelectedSizeId(newSizeId);
-    // If we have an active slot, apply this size to its column immediately
     if (activeSlot !== null) {
       const newSlots = [...slots];
       const colIndices = getColumnIndices(activeSlot);
@@ -253,6 +258,7 @@ export default function GridMakerPage() {
     if (user && db) {
       setDocumentNonBlocking(doc(db, 'users', user.uid), {
         preferredCanvasSize: canvasDim,
+        preferredSpacing: spacingCm,
         updatedAt: new Date().toISOString()
       }, { merge: true });
       toast({ title: "Settings Saved", description: "Canvas preferences updated." });
@@ -265,6 +271,8 @@ export default function GridMakerPage() {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+
+    const spacingPx = Math.round(spacingCm * CM_TO_PX);
 
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
@@ -297,8 +305,8 @@ export default function GridMakerPage() {
       if (hPx > rowHeights[row]) rowHeights[row] = hPx;
     });
 
-    const offsetX = SPACING_PX; 
-    const offsetY = SPACING_PX;
+    const offsetX = spacingPx; 
+    const offsetY = spacingPx;
 
     images.forEach((img, i) => {
       const col = i % numCols;
@@ -311,13 +319,13 @@ export default function GridMakerPage() {
       // Calculate X based on previous column widths
       let x = offsetX;
       for (let c = 0; c < col; c++) {
-        x += colWidths[c] + SPACING_PX;
+        x += colWidths[c] + spacingPx;
       }
 
       // Calculate Y based on previous row heights
       let y = offsetY;
       for (let r = 0; r < row; r++) {
-        y += rowHeights[r] + SPACING_PX;
+        y += rowHeights[r] + spacingPx;
       }
 
       // Skip if out of bounds
@@ -351,7 +359,7 @@ export default function GridMakerPage() {
         ctx.restore();
       }
     });
-  }, [slots, canvasWidthPx, canvasHeightPx, numCols, numRows, getSizeFromId]);
+  }, [slots, canvasWidthPx, canvasHeightPx, numCols, numRows, spacingCm, getSizeFromId]);
 
   useEffect(() => {
     drawCanvas();
@@ -517,6 +525,24 @@ export default function GridMakerPage() {
                   </div>
                 </div>
 
+                <div className="space-y-4 pt-4 border-t">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Gap Adjustment (cm)</Label>
+                    <span className="text-xs font-bold text-primary">{spacingCm} cm</span>
+                  </div>
+                  <Slider 
+                    value={[spacingCm]} 
+                    min={0} 
+                    max={2} 
+                    step={0.01} 
+                    onValueChange={(val) => setSpacingCm(val[0])}
+                    className="py-2"
+                  />
+                  <p className="text-[9px] text-muted-foreground italic">
+                    Adjust the space between photos and the outer margins.
+                  </p>
+                </div>
+
                 <div className="space-y-2 pt-4 border-t">
                   <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Target Photo Size</Label>
                   <Select value={selectedSizeId} onValueChange={handleSizeChange}>
@@ -617,8 +643,8 @@ export default function GridMakerPage() {
                 {[
                   { label: "Print Format", val: `${canvasDim.width}x${canvasDim.height} in` },
                   { label: "HD Output", val: "300 DPI" },
-                  { label: "Sync Engine", val: "Vertical (Column)" },
-                  { label: "Layout", val: "Mixed Photo Sizes" }
+                  { label: "Gap Width", val: `${spacingCm} cm` },
+                  { label: "Layout", val: "Custom Grid" }
                 ].map((spec, i) => (
                   <div key={i} className="text-center group">
                     <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest transition-colors group-hover:text-primary">{spec.label}</p>
@@ -633,4 +659,3 @@ export default function GridMakerPage() {
     </div>
   );
 }
-
