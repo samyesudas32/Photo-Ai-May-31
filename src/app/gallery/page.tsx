@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useMemoFirebase, useCollection, useUser } from "@/firebase";
+import { useMemoFirebase, useCollection, useUser, useFirestore } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
 import Image from "next/image";
 import Header from "@/components/Header";
@@ -13,14 +13,15 @@ import { cn } from "@/lib/utils";
 
 export default function GalleryPage() {
   const { user } = useUser();
+  const db = useFirestore();
 
   const processedImagesQuery = useMemoFirebase(() => {
-    if (!user?.uid) return null;
+    if (!db || !user?.uid) return null;
     return query(
-      collection(user.uid ? `/users/${user.uid}/processed_images` : "temp"),
+      collection(db, "users", user.uid, "processed_images"),
       orderBy("createdAt", "desc")
     );
-  }, [user]);
+  }, [db, user]);
 
   const { data: images, isLoading } = useCollection(processedImagesQuery);
 
