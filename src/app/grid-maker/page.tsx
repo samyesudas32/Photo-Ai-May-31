@@ -13,11 +13,9 @@ import {
   Camera,
   FileImage,
   Layers,
-  Settings2,
   Save,
   Ruler,
-  LayoutGrid,
-  RotateCcw
+  LayoutGrid
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -32,7 +30,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
 import Link from "next/link";
@@ -53,7 +50,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 // CONSTANTS - High Precision 300 DPI for Professional Printing
 const DPI = 300;
 const CM_TO_PX = DPI / 2.54;
-const DEFAULT_SPACING = 0.52;
+const FIXED_SPACING = 0.52; // Internal standard maintained but UI removed
 
 interface CustomSize {
   id: string;
@@ -65,19 +62,11 @@ interface CustomSize {
 interface SlotData {
   url: string | null;
   sizeId: string;
-  panX: number;
-  panY: number;
-  rotation: number;
-  scale: number;
 }
 
 const DEFAULT_SLOT_DATA = (sizeId: string): SlotData => ({
   url: null,
   sizeId: sizeId,
-  panX: 0,
-  panY: 0,
-  rotation: 0,
-  scale: 1,
 });
 
 export default function GridMakerPage() {
@@ -89,7 +78,6 @@ export default function GridMakerPage() {
   const [canvasDim, setCanvasDim] = useState({ width: 6, height: 4 }); // In inches
   const [numCols, setNumCols] = useState(4);
   const [numRows, setNumRows] = useState(2);
-  const [spacingCm, setSpacingCm] = useState(DEFAULT_SPACING); 
   const [selectedSizeId, setSelectedSizeId] = useState<string>('default-passport');
   
   const totalSlots = numCols * numRows;
@@ -99,7 +87,6 @@ export default function GridMakerPage() {
   useEffect(() => {
     setSlots(prev => {
       const newSlots: SlotData[] = Array(totalSlots).fill(null).map(() => DEFAULT_SLOT_DATA(selectedSizeId));
-      
       prev.forEach((val, i) => {
         if (i < totalSlots) {
           newSlots[i] = val;
@@ -138,9 +125,6 @@ export default function GridMakerPage() {
     if (profile?.preferredCanvasSize) {
       setCanvasDim(profile.preferredCanvasSize);
     }
-    if (profile?.preferredSpacing !== undefined) {
-      setSpacingCm(profile.preferredSpacing);
-    }
   }, [profile]);
 
   // Derived Pixel Dimensions
@@ -176,20 +160,17 @@ export default function GridMakerPage() {
       if (file.type.startsWith("image/")) {
         const reader = new FileReader();
         reader.onload = () => {
-          // Captures the full original file data to ensure no quality loss
           const newData = reader.result as string;
           const newSlots = [...slots];
           const colIndices = getColumnIndices(activeSlot);
-          
           colIndices.forEach(idx => {
             newSlots[idx] = { 
               ...DEFAULT_SLOT_DATA(selectedSizeId),
               url: newData, 
             };
           });
-          
           setSlots(newSlots);
-          toast({ title: "Column Updated", description: "High-resolution photo synced successfully." });
+          toast({ title: "Column Updated", description: "Original quality photo assigned." });
         };
         reader.readAsDataURL(file);
       }
@@ -267,7 +248,6 @@ export default function GridMakerPage() {
     if (user && db) {
       setDocumentNonBlocking(doc(db, 'users', user.uid), {
         preferredCanvasSize: canvasDim,
-        preferredSpacing: spacingCm,
         updatedAt: new Date().toISOString()
       }, { merge: true });
       toast({ title: "Settings Saved", description: "Canvas preferences updated." });
@@ -281,9 +261,9 @@ export default function GridMakerPage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const spacingPx = Math.round(spacingCm * CM_TO_PX);
+    const spacingPx = Math.round(FIXED_SPACING * CM_TO_PX);
 
-    // Force highest interpolation quality to ensure no detail is lost during drawing
+    // Force highest interpolation quality
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     ctx.clearRect(0, 0, canvasWidthPx, canvasHeightPx);
@@ -309,7 +289,6 @@ export default function GridMakerPage() {
       const size = getSizeFromId(slot.sizeId);
       const wPx = Math.round(size.widthCm * CM_TO_PX);
       const hPx = Math.round(size.heightCm * CM_TO_PX);
-      
       if (wPx > colWidths[col]) colWidths[col] = wPx;
       if (hPx > rowHeights[row]) rowHeights[row] = hPx;
     });
@@ -343,13 +322,7 @@ export default function GridMakerPage() {
         ctx.rect(x, y, slotWidth, slotHeight);
         ctx.clip();
 
-        const centerX = x + slotWidth / 2;
-        const centerY = y + slotHeight / 2;
-        
-        ctx.translate(centerX, centerY);
-        ctx.rotate((slot.rotation * Math.PI) / 180);
-        ctx.scale(slot.scale, slot.scale);
-
+        // Simple direct draw (no transformation logic as requested)
         const imgAspect = img.width / img.height;
         const slotAspect = slotWidth / slotHeight;
         let dW, dH;
@@ -360,11 +333,7 @@ export default function GridMakerPage() {
           dW = slotWidth; dH = dW / imgAspect;
         }
 
-        const panX = (slot.panX / 100) * slotWidth;
-        const panY = (slot.panY / 100) * slotHeight;
-
-        ctx.drawImage(img, -dW / 2 + panX, -dH / 2 + panY, dW, dH);
-        
+        ctx.drawImage(img, x + (slotWidth - dW) / 2, y + (slotHeight - dH) / 2, dW, dH);
         ctx.restore();
         
         ctx.strokeStyle = "#000000";
@@ -372,7 +341,7 @@ export default function GridMakerPage() {
         ctx.strokeRect(x + 1.5, y + 1.5, slotWidth - 3, slotHeight - 3);
       }
     });
-  }, [slots, canvasWidthPx, canvasHeightPx, numCols, numRows, spacingCm, getSizeFromId]);
+  }, [slots, canvasWidthPx, canvasHeightPx, numCols, numRows, getSizeFromId]);
 
   useEffect(() => {
     drawCanvas();
@@ -382,7 +351,6 @@ export default function GridMakerPage() {
     if (!canvasRef.current) return;
     const link = document.createElement("a");
     link.download = `pixelpass-hd-sheet.jpg`;
-    // Explicitly set 1.0 quality for maximum fidelity
     link.href = canvasRef.current.toDataURL("image/jpeg", 1.0);
     link.click();
   };
@@ -391,7 +359,6 @@ export default function GridMakerPage() {
     if (!canvasRef.current) return;
     const link = document.createElement("a");
     link.download = `pixelpass-hd-sheet.png`;
-    // PNG is lossless by default
     link.href = canvasRef.current.toDataURL("image/png");
     link.click();
   };
@@ -403,13 +370,8 @@ export default function GridMakerPage() {
       unit: "in",
       format: [canvasDim.width, canvasDim.height]
     });
-    // Use PNG for PDF addition to maintain lossless quality
     pdf.addImage(canvasRef.current.toDataURL("image/png"), "PNG", 0, 0, canvasDim.width, canvasDim.height);
     pdf.save(`pixelpass-hd-sheet.pdf`);
-  };
-
-  const handleResetSpacing = () => {
-    setSpacingCm(DEFAULT_SPACING);
   };
 
   return (
@@ -436,7 +398,7 @@ export default function GridMakerPage() {
             <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" className="rounded-full shadow-sm">
-                  <Settings2 className="mr-2 h-4 w-4" /> Canvas Format
+                  <Ruler className="mr-2 h-4 w-4" /> Canvas Format
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-md">
@@ -481,7 +443,7 @@ export default function GridMakerPage() {
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle>Targeted Slot Distribution</DialogTitle>
-                  <DialogDescription>Input slot numbers (e.g. 1, 3, 4). Columns sync size and photo.</DialogDescription>
+                  <DialogDescription>Input slot numbers (e.g. 1, 3, 4). Columns sync photo quality.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
@@ -504,7 +466,7 @@ export default function GridMakerPage() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button onClick={handleProcessBulk} className="w-full h-12">Process and Upload to Selected Slots</Button>
+                  <Button onClick={handleProcessBulk} className="w-full h-12">Process and Upload</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -545,32 +507,6 @@ export default function GridMakerPage() {
                   </div>
                 </div>
 
-                <div className="space-y-4 pt-4 border-t">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Gap Adjustment (cm)</Label>
-                    <div className="flex items-center gap-2">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-6 w-6 text-muted-foreground hover:text-primary transition-colors"
-                        onClick={handleResetSpacing}
-                        title="Reset to 0.52cm"
-                      >
-                        <RotateCcw className="h-3 w-3" />
-                      </Button>
-                      <span className="text-xs font-bold text-primary">{spacingCm} cm</span>
-                    </div>
-                  </div>
-                  <Slider 
-                    value={[spacingCm]} 
-                    min={0} 
-                    max={2} 
-                    step={0.01} 
-                    onValueChange={(val) => setSpacingCm(val[0])}
-                    className="py-2"
-                  />
-                </div>
-
                 <div className="space-y-2 pt-4 border-t">
                   <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Target Photo Size</Label>
                   <Select value={selectedSizeId} onValueChange={handleSizeChange}>
@@ -589,7 +525,7 @@ export default function GridMakerPage() {
                 </div>
 
                 <div className="space-y-3 pt-4 border-t">
-                  <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Interactive Portions ({numCols}x{numRows})</Label>
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Interactive Slots ({numCols}x{numRows})</Label>
                   <div 
                     className="grid gap-2"
                     style={{ gridTemplateColumns: `repeat(${numCols}, 1fr)` }}
@@ -608,7 +544,7 @@ export default function GridMakerPage() {
                             <div className="relative w-full h-full group/image">
                               <Image 
                                 src={slot.url} 
-                                alt={`S${i+1}`} 
+                                alt={`Slot ${i+1}`} 
                                 fill 
                                 className="object-cover" 
                               />

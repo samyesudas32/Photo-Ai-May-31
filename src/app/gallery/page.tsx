@@ -9,7 +9,6 @@ import { Card } from "@/components/ui/card";
 import { ImageIcon, Loader2, Camera, Download } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 export default function GalleryPage() {
   const { user } = useUser();
@@ -34,7 +33,7 @@ export default function GalleryPage() {
           <div className="space-y-1">
             <h1 className="text-4xl font-black tracking-tighter text-gray-900 uppercase">Photo Archive</h1>
             <p className="text-sm text-muted-foreground font-medium tracking-tight">
-              PRECISION GRID: 0.52CM GAP • 3PX STROKE
+              PRECISION HD RENDERING • LOSSLESS EXPORT
             </p>
           </div>
           <Button asChild className="rounded-full px-8 font-bold shadow-lg transition-transform hover:scale-105">
@@ -90,7 +89,6 @@ export default function GalleryPage() {
                     className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
                   />
                   
-                  {/* Overlay on hover */}
                   <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center gap-4 p-6">
                     <div className="text-white text-center space-y-1 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
                       <p className="text-[10px] font-black uppercase tracking-[0.2em]">Dimensions</p>
@@ -115,7 +113,7 @@ export default function GalleryPage() {
       <footer className="border-t py-12 bg-white mt-auto">
         <div className="container mx-auto px-4 text-center">
           <div className="inline-flex items-center gap-4 text-[10px] text-muted-foreground uppercase tracking-[0.3em] font-black opacity-60">
-            <span>Grid Precision: 0.52cm</span>
+            <span>HD Precision</span>
             <span className="h-1 w-1 rounded-full bg-muted-foreground" />
             <span>Stroke: 3px Black</span>
             <span className="h-1 w-1 rounded-full bg-muted-foreground" />
