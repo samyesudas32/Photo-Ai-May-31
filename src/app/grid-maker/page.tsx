@@ -38,19 +38,21 @@ const CANVAS_HEIGHT_IN = 4;
 const CANVAS_WIDTH = CANVAS_WIDTH_IN * DPI; // 1800px
 const CANVAS_HEIGHT = CANVAS_HEIGHT_IN * DPI; // 1200px
 
-// PHOTO STYLING CONSTANTS (0.3cm at 300 DPI)
-const WHITE_BORDER_PX = Math.round((0.3 / 2.54) * DPI); // ~35px
+// PHOTO STYLING CONSTANTS (Exact physical units)
+const GRID_GAP_CM = 0.52;
+const GRID_GAP_PX = Math.round((GRID_GAP_CM / 2.54) * DPI); // ~61px
+const WHITE_BORDER_CM = 0.3;
+const WHITE_BORDER_PX = Math.round((WHITE_BORDER_CM / 2.54) * DPI); // ~35px
 const BLACK_STROKE_PX = 3;
 
 export default function GridMakerPage() {
   const [sourceImage, setSourceImage] = useState<string | null>(null);
-  const [photoCount, setPhotoCount] = useState<number>(8);
+  const [photoCount, setPhotoCount] = useState<number>(6);
   const [cols, setCols] = useState(4);
   const [rows, setRows] = useState(2);
   
   // Layout Controls
-  const [margin, setMargin] = useState(40); 
-  const [spacing, setSpacing] = useState(30);
+  const [margin, setMargin] = useState(60); 
   const [showBorders, setShowBorders] = useState(true);
   
   // Crop Controls
@@ -62,22 +64,19 @@ export default function GridMakerPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  // Auto-arrange logic
+  // GRID ENGINE: Auto-arrange logic
   useEffect(() => {
+    // Specifically support up to 4 columns as requested
     if (photoCount <= 2) { 
-      setCols(2); 
+      setCols(photoCount); 
       setRows(1); 
     } else if (photoCount <= 4) { 
       setCols(2); 
       setRows(2); 
-    } else if (photoCount <= 6) { 
-      setCols(3); 
-      setRows(2); 
-    } else if (photoCount <= 8) { 
-      setCols(4); 
-      setRows(2); 
+    } else if (photoCount <= 8) {
+      setCols(4);
+      setRows(Math.ceil(photoCount / 4));
     } else {
-      // For counts > 8, stick to 4 columns and expand rows
       setCols(4);
       setRows(Math.ceil(photoCount / 4));
     }
@@ -95,7 +94,7 @@ export default function GridMakerPage() {
           setOffsetY(0);
           toast({
             title: "Photo Uploaded",
-            description: `Generating 6x4 grid layout.`,
+            description: `Generating 6x4 Grid with 0.52cm precision.`,
           });
         };
         reader.readAsDataURL(file);
@@ -119,10 +118,10 @@ export default function GridMakerPage() {
 
       const totalMarginX = margin * 2;
       const totalMarginY = margin * 2;
-      const totalSpacingX = spacing * (cols - 1);
-      const totalSpacingY = spacing * (rows - 1);
+      const totalSpacingX = GRID_GAP_PX * (cols - 1);
+      const totalSpacingY = GRID_GAP_PX * (rows - 1);
 
-      // Grid cell size
+      // Grid cell size calculation (Box-Sizing: Border-Box approach)
       const cellWidth = (CANVAS_WIDTH - totalMarginX - totalSpacingX) / cols;
       const cellHeight = (CANVAS_HEIGHT - totalMarginY - totalSpacingY) / rows;
 
@@ -131,23 +130,16 @@ export default function GridMakerPage() {
         for (let c = 0; c < cols; c++) {
           if (drawn >= photoCount) break;
 
-          const x = margin + c * (cellWidth + spacing);
-          const y = margin + r * (cellHeight + spacing);
+          const x = margin + c * (cellWidth + GRID_GAP_PX);
+          const y = margin + r * (cellHeight + GRID_GAP_PX);
 
-          // 1. Calculate the Image Area (Inside the white border and stroke)
-          const reduction = (WHITE_BORDER_PX + (showBorders ? BLACK_STROKE_PX : 0));
-          const imageAreaWidth = cellWidth - (reduction * 2);
-          const imageAreaHeight = cellHeight - (reduction * 2);
-          const imageAreaX = x + reduction;
-          const imageAreaY = y + reduction;
-
-          // 2. Draw Black Stroke (Outer frame)
+          // 1. Draw Black Stroke (Outer frame)
           if (showBorders) {
             ctx.fillStyle = "#000000";
             ctx.fillRect(x, y, cellWidth, cellHeight);
           }
 
-          // 3. Draw White Border (Inner frame)
+          // 2. Draw White Border (Inner frame)
           ctx.fillStyle = "#FFFFFF";
           const strokeReduction = showBorders ? BLACK_STROKE_PX : 0;
           ctx.fillRect(
@@ -157,7 +149,13 @@ export default function GridMakerPage() {
             cellHeight - (strokeReduction * 2)
           );
 
-          // 4. Draw the actual photo inside
+          // 3. Draw Image (Inside the white border)
+          const reduction = (WHITE_BORDER_PX + strokeReduction);
+          const imageAreaWidth = cellWidth - (reduction * 2);
+          const imageAreaHeight = cellHeight - (reduction * 2);
+          const imageAreaX = x + reduction;
+          const imageAreaY = y + reduction;
+
           ctx.save();
           ctx.beginPath();
           ctx.rect(imageAreaX, imageAreaY, imageAreaWidth, imageAreaHeight);
@@ -186,7 +184,7 @@ export default function GridMakerPage() {
       }
     };
     img.src = sourceImage;
-  }, [sourceImage, photoCount, cols, rows, margin, spacing, showBorders, zoom, offsetX, offsetY]);
+  }, [sourceImage, photoCount, cols, rows, margin, showBorders, zoom, offsetX, offsetY]);
 
   useEffect(() => {
     drawGrid();
@@ -195,7 +193,7 @@ export default function GridMakerPage() {
   const downloadImage = (format: 'png' | 'jpeg') => {
     if (!canvasRef.current) return;
     const link = document.createElement("a");
-    link.download = `pixelpass-print-grid-${photoCount}.${format}`;
+    link.download = `pixelpass-grid-${photoCount}.${format}`;
     link.href = canvasRef.current.toDataURL(`image/${format}`, 1.0);
     link.click();
     toast({ title: "Success", description: `${format.toUpperCase()} grid saved.` });
@@ -210,11 +208,9 @@ export default function GridMakerPage() {
     });
     const imgData = canvasRef.current.toDataURL("image/jpeg", 1.0);
     pdf.addImage(imgData, "JPEG", 0, 0, 6, 4, undefined, 'FAST');
-    pdf.save(`pixelpass-print-grid-${photoCount}.pdf`);
+    pdf.save(`pixelpass-grid-${photoCount}.pdf`);
     toast({ title: "PDF Ready", description: "Standard 6x4in print document generated." });
   };
-
-  const pxToMm = (px: number) => ((px / DPI) * 25.4).toFixed(1);
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -233,7 +229,7 @@ export default function GridMakerPage() {
               <span className="text-xs font-black bg-primary text-white px-2.5 py-1 rounded-sm uppercase tracking-widest">
                 6 x 4 in @ 300 DPI
               </span>
-              <p className="text-muted-foreground text-sm font-medium">Professional photo-sheet generator.</p>
+              <p className="text-muted-foreground text-sm font-medium">CSS Grid Precision Engine (0.52cm Gap)</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -249,7 +245,6 @@ export default function GridMakerPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* LEFT PANEL: CONTROLS */}
           <div className="lg:col-span-4 space-y-6">
             <Card className="shadow-xl border-none">
               <CardHeader className="pb-4">
@@ -259,10 +254,7 @@ export default function GridMakerPage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs font-bold uppercase text-muted-foreground">Quick Presets</Label>
-                  </div>
-                  
+                  <Label className="text-xs font-bold uppercase text-muted-foreground">Photo Copies</Label>
                   <div className="grid grid-cols-4 gap-2">
                     {[2, 4, 6, 8].map((count) => (
                       <Button
@@ -280,7 +272,7 @@ export default function GridMakerPage() {
                   <div className="flex items-center justify-between pt-4 border-t">
                     <div className="space-y-0.5">
                       <Label className="text-sm font-semibold">Total Copies</Label>
-                      <p className="text-[10px] text-muted-foreground">Adjust count (max 32)</p>
+                      <p className="text-[10px] text-muted-foreground">Vertical Adjustment</p>
                     </div>
                     <div className="flex flex-col items-center gap-0">
                       <Button 
@@ -318,42 +310,22 @@ export default function GridMakerPage() {
                   <Label className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
                     <Move className="h-3 w-3" /> Crop & Reposition
                   </Label>
-                  
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <span className="text-xs">Zoom</span>
                         <span className="text-[10px] font-mono">{zoom}%</span>
                       </div>
-                      <Slider 
-                        value={[zoom]} 
-                        min={50} 
-                        max={300} 
-                        onValueChange={(v) => setZoom(v[0])}
-                        disabled={!sourceImage}
-                      />
+                      <Slider value={[zoom]} min={50} max={300} onValueChange={(v) => setZoom(v[0])} disabled={!sourceImage} />
                     </div>
-
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <span className="text-[10px] text-muted-foreground uppercase font-bold">X-Offset</span>
-                        <Slider 
-                          value={[offsetX]} 
-                          min={-400} 
-                          max={400} 
-                          onValueChange={(v) => setOffsetX(v[0])}
-                          disabled={!sourceImage}
-                        />
+                        <Slider value={[offsetX]} min={-400} max={400} onValueChange={(v) => setOffsetX(v[0])} disabled={!sourceImage} />
                       </div>
                       <div className="space-y-2">
                         <span className="text-[10px] text-muted-foreground uppercase font-bold">Y-Offset</span>
-                        <Slider 
-                          value={[offsetY]} 
-                          min={-400} 
-                          max={400} 
-                          onValueChange={(v) => setOffsetY(v[0])}
-                          disabled={!sourceImage}
-                        />
+                        <Slider value={[offsetY]} min={-400} max={400} onValueChange={(v) => setOffsetY(v[0])} disabled={!sourceImage} />
                       </div>
                     </div>
                   </div>
@@ -361,32 +333,23 @@ export default function GridMakerPage() {
 
                 <div className="space-y-6 pt-6 border-t">
                   <Label className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
-                    <Settings2 className="h-3 w-3" /> Layout Metrics
+                    <Settings2 className="h-3 w-3" /> Fixed Metrics
                   </Label>
-
                   <div className="space-y-4">
-                    <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-medium">Grid Gap (CSS Engine)</span>
+                      <span className="bg-muted px-2 py-0.5 rounded font-mono">0.52 cm</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-medium">Photo Stroke</span>
+                      <span className="bg-muted px-2 py-0.5 rounded font-mono">3 px Solid</span>
+                    </div>
+                    <div className="space-y-2 pt-2">
                       <div className="flex justify-between">
                         <span className="text-xs">Sheet Margins</span>
-                        <span className="text-[10px] font-mono">{pxToMm(margin)} mm</span>
+                        <span className="text-[10px] font-mono">Adjustable</span>
                       </div>
-                      <Slider value={[margin]} min={0} max={150} onValueChange={(v) => setMargin(v[0])} disabled={!sourceImage} />
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-xs">Block Spacing</span>
-                        <span className="text-[10px] font-mono">{pxToMm(spacing)} mm</span>
-                      </div>
-                      <Slider value={[spacing]} min={0} max={100} onValueChange={(v) => setSpacing(v[0])} disabled={!sourceImage} />
-                    </div>
-
-                    <div className="flex items-center justify-between py-3 border-y">
-                      <div className="space-y-0.5">
-                        <Label htmlFor="borders" className="text-xs font-bold">Black Stroke Frame</Label>
-                        <p className="text-[9px] text-muted-foreground">3px outline around whiteboard border.</p>
-                      </div>
-                      <Switch id="borders" checked={showBorders} onCheckedChange={setShowBorders} disabled={!sourceImage} />
+                      <Slider value={[margin]} min={0} max={200} onValueChange={(v) => setMargin(v[0])} disabled={!sourceImage} />
                     </div>
                   </div>
                 </div>
@@ -394,9 +357,6 @@ export default function GridMakerPage() {
                 <div className="pt-4 space-y-2">
                   <Button className="w-full font-bold shadow-lg" onClick={() => downloadImage('png')} disabled={!sourceImage}>
                     <ImageIcon className="mr-2 h-4 w-4" /> Download PNG (1800x1200)
-                  </Button>
-                  <Button variant="secondary" className="w-full font-bold shadow-md" onClick={() => downloadImage('jpeg')} disabled={!sourceImage}>
-                    <ImageIcon className="mr-2 h-4 w-4" /> Download JPG (High Res)
                   </Button>
                   <Button variant="outline" className="w-full font-bold" onClick={downloadPDF} disabled={!sourceImage}>
                     <FileText className="mr-2 h-4 w-4" /> Print PDF (6 x 4 in)
@@ -406,31 +366,21 @@ export default function GridMakerPage() {
             </Card>
           </div>
 
-          {/* MAIN AREA: LIVE PREVIEW */}
           <div className="lg:col-span-8 space-y-6">
             <Card className="bg-white/40 border-2 border-dashed overflow-hidden flex flex-col items-center justify-center min-h-[650px] relative shadow-inner p-12">
               {!sourceImage ? (
-                <div 
-                  className="flex flex-col items-center justify-center text-center cursor-pointer group"
-                  onClick={() => fileInputRef.current?.click()}
-                >
+                <div className="flex flex-col items-center justify-center text-center cursor-pointer group" onClick={() => fileInputRef.current?.click()}>
                   <div className="h-28 w-28 rounded-full bg-primary/5 flex items-center justify-center mb-6 ring-8 ring-primary/5 group-hover:bg-primary/10 transition-all">
                     <Printer className="h-14 w-14 text-primary/30 group-hover:text-primary/50" />
                   </div>
                   <h3 className="text-3xl font-bold mb-3 tracking-tight">Print Layout Studio</h3>
                   <p className="text-muted-foreground max-w-sm mb-8 leading-relaxed">
-                    Upload a portrait to create an 1800x1200px print sheet formatted specifically for 4x6" photo paper.
+                    6x4 inch sheet @ 300 DPI. 0.52cm gaps and 3px borders applied automatically.
                   </p>
                   <Button size="lg" className="rounded-full px-16 font-bold text-lg shadow-xl hover:scale-105 transition-transform">
                     Start New Sheet
                   </Button>
-                  <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    onChange={handleFileChange} 
-                    className="hidden" 
-                    accept="image/*"
-                  />
+                  <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
                 </div>
               ) : (
                 <div className="w-full flex flex-col items-center animate-in fade-in zoom-in duration-500">
@@ -446,16 +396,16 @@ export default function GridMakerPage() {
                       />
                     </div>
                     <div className="absolute -top-4 -left-4 bg-black text-white text-[10px] font-black px-6 py-2 rounded-full shadow-2xl uppercase tracking-[0.2em] z-10 border border-white/20">
-                      300 DPI MASTER PREVIEW
+                      300 DPI GRID ENGINE
                     </div>
                   </div>
                   
                   <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-8 w-full max-w-2xl border-t pt-8">
                     {[
                       { label: "Paper Size", val: "6 x 4 in" },
-                      { label: "Resolution", val: "300 DPI" },
-                      { label: "Pixel Output", val: "1800 x 1200" },
-                      { label: "Layout Mode", val: `${cols}x${rows} Grid` }
+                      { label: "Precision Gap", val: "0.52 cm" },
+                      { label: "Stroke", val: "3 px Black" },
+                      { label: "Layout Mode", val: `${cols} Cols (Fixed)` }
                     ].map((spec, i) => (
                       <div key={i} className="text-center space-y-1.5">
                         <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">{spec.label}</p>
@@ -466,36 +416,6 @@ export default function GridMakerPage() {
                 </div>
               )}
             </Card>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="flex items-start gap-4 p-5 bg-white rounded-2xl border shadow-sm">
-                <div className="h-10 w-10 rounded-xl bg-green-500/10 flex items-center justify-center shrink-0">
-                  <CheckCircle2 className="h-5 w-5 text-green-600" />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="font-bold text-sm uppercase tracking-tight">Whiteboard Border</h4>
-                  <p className="text-xs text-muted-foreground leading-relaxed">Exact 0.3cm margin around every portrait for a clean, professional finish.</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-4 p-5 bg-white rounded-2xl border shadow-sm">
-                <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
-                  <Maximize2 className="h-5 w-5 text-blue-600" />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="font-bold text-sm uppercase tracking-tight">Pixel Perfect</h4>
-                  <p className="text-xs text-muted-foreground leading-relaxed">Canvas optimized at 300 DPI for high-end home or commercial printers.</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-4 p-5 bg-white rounded-2xl border shadow-sm">
-                <div className="h-10 w-10 rounded-xl bg-purple-500/10 flex items-center justify-center shrink-0">
-                  <Grid3X3 className="h-5 w-5 text-purple-600" />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="font-bold text-sm uppercase tracking-tight">Smart Grid</h4>
-                  <p className="text-xs text-muted-foreground leading-relaxed">Automatically calculates optimal rows and columns for your photo count.</p>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </main>
