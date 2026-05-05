@@ -1,5 +1,6 @@
+
 import Link from 'next/link';
-import { ShieldCheck, Camera, Grid3X3 } from 'lucide-react';
+import { ShieldCheck, Camera, Grid3X3, ImageIcon } from 'lucide-react';
 
 export default function Header() {
   return (
@@ -15,6 +16,9 @@ export default function Header() {
           <Link href="/editor" className="text-sm font-medium hover:text-primary transition-colors">AI Editor</Link>
           <Link href="/grid-maker" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1.5">
             <Grid3X3 className="h-4 w-4" /> Grid Maker
+          </Link>
+          <Link href="/gallery" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1.5">
+            <ImageIcon className="h-4 w-4" /> Gallery
           </Link>
           <div className="flex items-center gap-1.5 rounded-full bg-muted px-4 py-1.5 text-sm font-semibold text-muted-foreground border">
             <ShieldCheck className="h-4 w-4 text-green-500" />
