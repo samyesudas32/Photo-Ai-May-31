@@ -2,7 +2,6 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import Image from "next/image";
 import { 
   Upload, 
   Download, 
@@ -14,7 +13,9 @@ import {
   Printer,
   Move,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -43,7 +44,6 @@ const BLACK_STROKE_PX = 3;
 
 export default function GridMakerPage() {
   const [sourceImage, setSourceImage] = useState<string | null>(null);
-  const [photoCount, setPhotoCount] = useState<number>(6);
   const [cols, setCols] = useState(4);
   const [rows, setRows] = useState(2);
   
@@ -59,21 +59,6 @@ export default function GridMakerPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  // GRID ENGINE: Auto-arrange logic
-  useEffect(() => {
-    // Specifically support up to 4 columns
-    if (photoCount <= 2) { 
-      setCols(photoCount); 
-      setRows(1); 
-    } else if (photoCount <= 4) { 
-      setCols(2); 
-      setRows(2); 
-    } else {
-      setCols(4);
-      setRows(Math.ceil(photoCount / 4));
-    }
-  }, [photoCount]);
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -86,7 +71,7 @@ export default function GridMakerPage() {
           setOffsetY(0);
           toast({
             title: "Photo Uploaded",
-            description: `Generating 6x4 Grid.`,
+            description: `Generating ${cols}x${rows} Layout.`,
           });
         };
         reader.readAsDataURL(file);
@@ -117,11 +102,8 @@ export default function GridMakerPage() {
       const cellWidth = (CANVAS_WIDTH - totalMarginX - totalSpacingX) / cols;
       const cellHeight = (CANVAS_HEIGHT - totalMarginY - totalSpacingY) / rows;
 
-      let drawn = 0;
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
-          if (drawn >= photoCount) break;
-
           const x = margin + c * (cellWidth + GRID_GAP_PX);
           const y = margin + r * (cellHeight + GRID_GAP_PX);
 
@@ -168,13 +150,11 @@ export default function GridMakerPage() {
 
           ctx.drawImage(img, drawX, drawY, drawW, drawH);
           ctx.restore();
-
-          drawn++;
         }
       }
     };
     img.src = sourceImage;
-  }, [sourceImage, photoCount, cols, rows, margin, zoom, offsetX, offsetY]);
+  }, [sourceImage, cols, rows, margin, zoom, offsetX, offsetY]);
 
   useEffect(() => {
     drawGrid();
@@ -183,7 +163,7 @@ export default function GridMakerPage() {
   const downloadImage = (format: 'png' | 'jpeg') => {
     if (!canvasRef.current) return;
     const link = document.createElement("a");
-    link.download = `pixelpass-grid-${photoCount}.${format}`;
+    link.download = `pixelpass-grid-${cols}x${rows}.${format}`;
     link.href = canvasRef.current.toDataURL(`image/${format}`, 1.0);
     link.click();
     toast({ title: "Success", description: `${format.toUpperCase()} grid saved.` });
@@ -198,8 +178,13 @@ export default function GridMakerPage() {
     });
     const imgData = canvasRef.current.toDataURL("image/jpeg", 1.0);
     pdf.addImage(imgData, "JPEG", 0, 0, 6, 4, undefined, 'FAST');
-    pdf.save(`pixelpass-grid-${photoCount}.pdf`);
+    pdf.save(`pixelpass-grid-${cols}x${rows}.pdf`);
     toast({ title: "PDF Ready", description: "Standard 6x4in print document generated." });
+  };
+
+  const setPreset = (c: number, r: number) => {
+    setCols(c);
+    setRows(r);
   };
 
   return (
@@ -239,54 +224,83 @@ export default function GridMakerPage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-4">
-                  <Label className="text-xs font-bold uppercase text-muted-foreground">Photo Copies</Label>
+                  <Label className="text-xs font-bold uppercase text-muted-foreground">Layout Presets</Label>
                   <div className="grid grid-cols-4 gap-2">
-                    {[2, 4, 6, 8].map((count) => (
+                    {[
+                      { l: '2', c: 2, r: 1 },
+                      { l: '4', c: 2, r: 2 },
+                      { l: '6', c: 3, r: 2 },
+                      { l: '8', c: 4, r: 2 }
+                    ].map((p) => (
                       <Button
-                        key={count}
-                        variant={photoCount === count ? "default" : "outline"}
+                        key={p.l}
+                        variant={cols === p.c && rows === p.r ? "default" : "outline"}
                         className="font-bold h-10"
-                        onClick={() => setPhotoCount(count)}
+                        onClick={() => setPreset(p.c, p.r)}
                         disabled={!sourceImage}
                       >
-                        {count}
+                        {p.l}
                       </Button>
                     ))}
                   </div>
                   
-                  <div className="flex items-center justify-between pt-4 border-t">
-                    <div className="space-y-0.5">
-                      <Label className="text-sm font-semibold">Total Copies</Label>
-                      <p className="text-[10px] text-muted-foreground">Manual Adjustment</p>
-                    </div>
-                    <div className="flex flex-col items-center gap-0">
-                      <Button 
-                        variant="outline" 
-                        size="icon" 
-                        className="h-8 w-14 rounded-t-lg rounded-b-none border-b-0"
-                        onClick={() => setPhotoCount(Math.min(32, photoCount + 1))}
-                        disabled={!sourceImage || photoCount >= 32}
-                      >
-                        <ChevronUp className="h-4 w-4" />
-                      </Button>
-                      <Input 
-                        type="number"
-                        min={1}
-                        max={32}
-                        value={photoCount}
-                        onChange={(e) => setPhotoCount(Math.max(1, Math.min(32, parseInt(e.target.value) || 1)))}
-                        className="h-9 w-14 text-center font-bold rounded-none border-y-0 focus-visible:ring-0"
-                        disabled={!sourceImage}
-                      />
-                      <Button 
-                        variant="outline" 
-                        size="icon" 
-                        className="h-8 w-14 rounded-b-lg rounded-t-none border-t-0"
-                        onClick={() => setPhotoCount(Math.max(1, photoCount - 1))}
-                        disabled={!sourceImage || photoCount <= 1}
-                      >
-                        <ChevronDown className="h-4 w-4" />
-                      </Button>
+                  <div className="space-y-4 pt-4 border-t">
+                    <Label className="text-xs font-bold uppercase text-muted-foreground">Grid Arrangement</Label>
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="grid grid-cols-3 gap-2 items-center">
+                        <div />
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          className="h-10 w-14"
+                          onClick={() => setRows(r => Math.min(10, r + 1))}
+                          disabled={!sourceImage || rows >= 10}
+                          title="Add Row"
+                        >
+                          <ChevronUp className="h-4 w-4" />
+                        </Button>
+                        <div />
+                        
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          className="h-14 w-10"
+                          onClick={() => setCols(c => Math.max(1, c - 1))}
+                          disabled={!sourceImage || cols <= 1}
+                          title="Remove Column"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        
+                        <div className="flex flex-col items-center justify-center border-2 border-primary/20 rounded-xl p-3 bg-primary/5 min-w-20 min-h-20 shadow-inner">
+                          <span className="text-lg font-black text-primary">{cols}x{rows}</span>
+                          <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">{cols * rows} Photos</span>
+                        </div>
+                        
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          className="h-14 w-10"
+                          onClick={() => setCols(c => Math.min(10, c + 1))}
+                          disabled={!sourceImage || cols >= 10}
+                          title="Add Column"
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+
+                        <div />
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          className="h-10 w-14"
+                          onClick={() => setRows(r => Math.max(1, r - 1))}
+                          disabled={!sourceImage || rows <= 1}
+                          title="Remove Row"
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
+                        <div />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -374,7 +388,7 @@ export default function GridMakerPage() {
                       { label: "Paper Size", val: "6 x 4 in" },
                       { label: "Resolution", val: "300 DPI" },
                       { label: "Stroke", val: "3 px Solid" },
-                      { label: "Copies", val: photoCount }
+                      { label: "Arrangement", val: `${cols} x ${rows}` }
                     ].map((spec, i) => (
                       <div key={i} className="text-center space-y-1.5">
                         <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">{spec.label}</p>
