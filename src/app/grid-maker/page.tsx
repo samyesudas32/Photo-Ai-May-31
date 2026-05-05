@@ -11,17 +11,12 @@ import {
   Image as ImageIcon,
   Trash2,
   Printer,
-  Move,
-  ChevronUp,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight
+  Move
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
 import Link from "next/link";
@@ -242,66 +237,6 @@ export default function GridMakerPage() {
                         {p.l}
                       </Button>
                     ))}
-                  </div>
-                  
-                  <div className="space-y-4 pt-4 border-t">
-                    <Label className="text-xs font-bold uppercase text-muted-foreground">Grid Arrangement</Label>
-                    <div className="flex flex-col items-center gap-2">
-                      <div className="grid grid-cols-3 gap-2 items-center">
-                        <div />
-                        <Button 
-                          variant="outline" 
-                          size="icon" 
-                          className="h-10 w-14"
-                          onClick={() => setRows(r => Math.min(10, r + 1))}
-                          disabled={!sourceImage || rows >= 10}
-                          title="Add Row"
-                        >
-                          <ChevronUp className="h-4 w-4" />
-                        </Button>
-                        <div />
-                        
-                        <Button 
-                          variant="outline" 
-                          size="icon" 
-                          className="h-14 w-10"
-                          onClick={() => setCols(c => Math.max(1, c - 1))}
-                          disabled={!sourceImage || cols <= 1}
-                          title="Remove Column"
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                        </Button>
-                        
-                        <div className="flex flex-col items-center justify-center border-2 border-primary/20 rounded-xl p-3 bg-primary/5 min-w-20 min-h-20 shadow-inner">
-                          <span className="text-lg font-black text-primary">{cols}x{rows}</span>
-                          <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">{cols * rows} Photos</span>
-                        </div>
-                        
-                        <Button 
-                          variant="outline" 
-                          size="icon" 
-                          className="h-14 w-10"
-                          onClick={() => setCols(c => Math.min(10, c + 1))}
-                          disabled={!sourceImage || cols >= 10}
-                          title="Add Column"
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
-
-                        <div />
-                        <Button 
-                          variant="outline" 
-                          size="icon" 
-                          className="h-10 w-14"
-                          onClick={() => setRows(r => Math.max(1, r - 1))}
-                          disabled={!sourceImage || rows <= 1}
-                          title="Remove Row"
-                        >
-                          <ChevronDown className="h-4 w-4" />
-                        </Button>
-                        <div />
-                      </div>
-                    </div>
                   </div>
                 </div>
 
