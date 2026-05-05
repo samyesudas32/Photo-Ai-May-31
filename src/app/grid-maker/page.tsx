@@ -138,7 +138,6 @@ export default function GridMakerPage() {
 
     const newSlots = [...slots];
     
-    // Logic: If one file is selected, apply to all targets. If multiple, map them 1-to-1.
     const fileLoadPromises = bulkFiles.map((file) => {
       return new Promise<{file: File, data: string}>((resolve) => {
         const reader = new FileReader();
@@ -153,7 +152,7 @@ export default function GridMakerPage() {
       // Use the specific file if multiple provided, otherwise repeat the first one
       const data = loadedFiles.length > 1 ? (loadedFiles[idx]?.data || loadedFiles[0].data) : loadedFiles[0].data;
       
-      // Vertical Sync: Always update the column pair
+      // Vertical Sync: Always update the column pair for distributed photos
       const counterpart = getVerticalCounterpart(targetIndex);
       newSlots[targetIndex] = data;
       newSlots[counterpart] = data;
@@ -172,15 +171,13 @@ export default function GridMakerPage() {
 
   const handleRemove = (index: number) => {
     const newSlots = [...slots];
-    const counterpart = getVerticalCounterpart(index);
-    
+    // One-by-one removal as requested: only clear the specific slot clicked
     newSlots[index] = null;
-    newSlots[counterpart] = null;
     
     setSlots(newSlots);
     toast({
-      title: "Photo Removed",
-      description: "Column cleared according to vertical alignment logic.",
+      title: "Slot Cleared",
+      description: `Slot ${index + 1} removed.`,
     });
   };
 
@@ -264,7 +261,7 @@ export default function GridMakerPage() {
     if (!canvasRef.current) return;
     const link = document.createElement("a");
     link.download = `pixelpass-hd-print-sheet.jpg`;
-    link.href = canvasRef.current.toDataURL("image/jpeg", 1.0); // 1.0 for max quality
+    link.href = canvasRef.current.toDataURL("image/jpeg", 1.0);
     link.click();
   };
 
@@ -304,7 +301,7 @@ export default function GridMakerPage() {
               <Grid3X3 className="h-8 w-8" /> HD Print Setup
             </h1>
             <p className="text-muted-foreground text-sm font-medium">
-              4x2 Grid (1800x1200px @ 300DPI). Vertical sync ensures perfect column alignment.
+              4x2 Grid (1800x1200px @ 300DPI). Columns sync on upload; delete slots one-by-one.
             </p>
           </div>
           
@@ -381,35 +378,38 @@ export default function GridMakerPage() {
                 <div className="grid grid-cols-4 gap-3">
                   {slots.map((uri, i) => (
                     <div key={i} className="space-y-1">
-                      <button
-                        onClick={() => handleSlotClick(i)}
-                        className={cn(
-                          "aspect-[35/45] w-full border-2 border-dashed rounded-xl flex items-center justify-center relative overflow-hidden transition-all hover:border-primary/50 group",
-                          uri ? "border-solid border-primary bg-white shadow-sm" : "bg-muted/30 border-muted"
-                        )}
-                      >
-                        {uri ? (
-                          <Image src={uri} alt={`Slot ${i+1}`} fill className="object-cover" />
-                        ) : (
-                          <Plus className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                        )}
-                        <div className="absolute top-1 right-1">
-                           <span className="text-[9px] font-black bg-black/60 text-white px-1.5 rounded-sm">{i + 1}</span>
-                        </div>
-                      </button>
-                      {uri && (
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-6 w-full text-destructive hover:bg-destructive/10"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemove(i);
-                          }}
+                      <div className="relative group">
+                        <button
+                          onClick={() => handleSlotClick(i)}
+                          className={cn(
+                            "aspect-[35/45] w-full border-2 border-dashed rounded-xl flex items-center justify-center relative overflow-hidden transition-all hover:border-primary/50 bg-muted/10",
+                            uri ? "border-solid border-primary bg-white shadow-sm" : "border-muted"
+                          )}
                         >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      )}
+                          {uri ? (
+                            <Image src={uri} alt={`Slot ${i+1}`} fill className="object-cover" />
+                          ) : (
+                            <Plus className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                          )}
+                          <div className="absolute top-1 right-1">
+                             <span className="text-[9px] font-black bg-black/60 text-white px-1.5 rounded-sm">{i + 1}</span>
+                          </div>
+                        </button>
+                        
+                        {uri && (
+                          <Button 
+                            variant="destructive" 
+                            size="icon" 
+                            className="h-6 w-6 rounded-full absolute -top-2 -right-2 shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemove(i);
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -463,10 +463,10 @@ export default function GridMakerPage() {
             
             <div className="p-4 bg-primary/5 rounded-xl border border-primary/10">
               <h4 className="text-xs font-black uppercase text-primary mb-2 flex items-center gap-2">
-                <CheckCircle2 className="h-3 w-3 text-green-500" /> Professional Sync
+                <CheckCircle2 className="h-3 w-3 text-green-500" /> Precision Grid
               </h4>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Column synchronization (Up/Down) is enabled. Spacing is fixed at 0.52cm for perfect 6x4" prints.
+                Vertical column sync ensures perfect alignment. Use individual trash icons to clear specific slots.
               </p>
             </div>
           </div>
