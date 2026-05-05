@@ -13,7 +13,8 @@ import {
   Camera,
   X,
   FileImage,
-  ShieldCheck
+  ShieldCheck,
+  CheckCircle2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -123,8 +124,8 @@ export default function GridMakerPage() {
       const col = i % COLS;
       const row = Math.floor(i / COLS);
       
-      const x = SPACING_PX + col * (SLOT_WIDTH + SPACING_PX);
-      const y = SPACING_PX + row * (SLOT_HEIGHT + SPACING_PX);
+      const x = Math.round(SPACING_PX + col * (SLOT_WIDTH + SPACING_PX));
+      const y = Math.round(SPACING_PX + row * (SLOT_HEIGHT + SPACING_PX));
 
       const img = new window.Image();
       img.onload = () => {
@@ -145,8 +146,8 @@ export default function GridMakerPage() {
           drawH = drawW / imgAspect;
         }
 
-        drawX = x + (SLOT_WIDTH - drawW) / 2;
-        drawY = y + (SLOT_HEIGHT - drawH) / 2;
+        drawX = Math.round(x + (SLOT_WIDTH - drawW) / 2);
+        drawY = Math.round(y + (SLOT_HEIGHT - drawH) / 2);
 
         ctx.drawImage(img, drawX, drawY, drawW, drawH);
         
@@ -173,6 +174,10 @@ export default function GridMakerPage() {
     // Use maximum quality (1.0) for HD JPEG export
     link.href = canvasRef.current.toDataURL("image/jpeg", 1.0);
     link.click();
+    toast({
+      title: "HD JPG Downloaded",
+      description: "Maximum 300 DPI quality preserved.",
+    });
   };
 
   const downloadPNG = () => {
@@ -182,6 +187,10 @@ export default function GridMakerPage() {
     // PNG is lossless by default
     link.href = canvasRef.current.toDataURL("image/png");
     link.click();
+    toast({
+      title: "HD PNG Downloaded",
+      description: "Lossless quality preserved.",
+    });
   };
 
   const downloadPDF = () => {
@@ -195,6 +204,10 @@ export default function GridMakerPage() {
     const imgData = canvasRef.current.toDataURL("image/png");
     pdf.addImage(imgData, "PNG", 0, 0, 6, 4);
     pdf.save(`pixelpass-hd-print-sheet.pdf`);
+    toast({
+      title: "HD PDF Exported",
+      description: "Lossless 6x4in format preserved.",
+    });
   };
 
   return (
@@ -264,29 +277,32 @@ export default function GridMakerPage() {
                 </div>
 
                 <div className="pt-6 border-t space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3">
                     <Button 
-                      className="font-bold shadow-md bg-secondary hover:bg-secondary/90" 
+                      className="font-bold shadow-md h-12 bg-secondary hover:bg-secondary/90 relative group" 
                       onClick={downloadPNG}
                       disabled={!slots.some(s => s !== null)}
                     >
-                      <Download className="mr-2 h-4 w-4" /> HD PNG
+                      <Download className="mr-2 h-4 w-4" /> HD Lossless PNG
+                      <span className="absolute -top-2 -right-2 bg-green-500 text-[8px] text-white px-1.5 py-0.5 rounded-full font-black">HD</span>
                     </Button>
                     <Button 
-                      className="font-bold shadow-md" 
+                      className="font-bold shadow-md h-12 relative group" 
                       onClick={downloadJPG}
                       disabled={!slots.some(s => s !== null)}
                     >
-                      <FileImage className="mr-2 h-4 w-4" /> HD JPG
+                      <FileImage className="mr-2 h-4 w-4" /> HD Maximum JPG
+                      <span className="absolute -top-2 -right-2 bg-green-500 text-[8px] text-white px-1.5 py-0.5 rounded-full font-black">HD</span>
                     </Button>
                   </div>
                   <Button 
                     variant="outline" 
-                    className="w-full h-12 font-bold border-2" 
+                    className="w-full h-12 font-bold border-2 relative group" 
                     onClick={downloadPDF}
                     disabled={!slots.some(s => s !== null)}
                   >
-                    <FileText className="mr-2 h-5 w-5" /> Export HD PDF
+                    <FileText className="mr-2 h-5 w-5" /> Export HD PDF (6x4in)
+                    <span className="absolute -top-2 -right-2 bg-green-500 text-[8px] text-white px-1.5 py-0.5 rounded-full font-black">HD</span>
                   </Button>
                   <Button 
                     variant="ghost" 
@@ -310,10 +326,10 @@ export default function GridMakerPage() {
             <div className="space-y-4">
               <div className="p-4 bg-primary/5 rounded-xl border border-primary/10">
                 <h4 className="text-xs font-black uppercase text-primary mb-2 flex items-center gap-2">
-                  <ShieldCheck className="h-3 w-3" /> Quality Assurance
+                  <CheckCircle2 className="h-3 w-3 text-green-500" /> Print Optimized
                 </h4>
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  All exports are processed at 300 DPI using lossless algorithms. This ensures your passport photos maintain sharpness and biometric accuracy for official use.
+                  All exports are strictly 300 DPI. We use lossless resampling algorithms to ensure your passport photos stay sharp and meet official biometric requirements.
                 </p>
               </div>
             </div>
