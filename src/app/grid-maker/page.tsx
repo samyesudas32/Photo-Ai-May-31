@@ -51,7 +51,7 @@ import {
   useCollection
 } from "@/firebase";
 import { doc, collection, query, orderBy, setDoc, getDoc } from "firebase/firestore";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectValue, SelectTrigger } from "@/components/ui/select";
 import { initiateAnonymousSignIn } from "@/firebase/non-blocking-login";
 
 // CONSTANTS - High Precision 300 DPI for Professional Printing
@@ -368,6 +368,18 @@ export default function GridMakerPage() {
       return;
     }
 
+    // Ensure Profile document exists first for ownership
+    const userRef = doc(db, 'users', user.uid);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) {
+      await setDoc(userRef, {
+        id: user.uid,
+        email: user.email || 'anonymous@pixelpass.ai',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    }
+
     const widthInCm = convertToCm(newSize.width, newSize.unit);
     const heightInCm = convertToCm(newSize.height, newSize.unit);
 
@@ -391,6 +403,21 @@ export default function GridMakerPage() {
     setEditingSizeId(null);
     setNewSize({ name: '', description: '', width: 35, height: 45, unit: 'mm' });
     toast({ title: editingSizeId ? "Size Updated" : "Size Saved" });
+  };
+
+  const handleEditCurrentSize = () => {
+    const currentSize = customSizes?.find(s => s.id === selectedSizeId);
+    if (currentSize) {
+      setEditingSizeId(currentSize.id);
+      setNewSize({
+        name: currentSize.name,
+        description: currentSize.description,
+        width: Math.round(currentSize.widthCm * 10), // Default to MM for editing simplicity
+        height: Math.round(currentSize.heightCm * 10),
+        unit: 'mm'
+      });
+      setIsAddSizeOpen(true);
+    }
   };
 
   const drawCanvas = useCallback(async () => {
@@ -620,54 +647,59 @@ export default function GridMakerPage() {
                 <div className="space-y-4 pt-4 border-t">
                   <div className="flex items-center justify-between">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground">Target Photo Size</Label>
-                    <Dialog open={isAddSizeOpen} onOpenChange={(open) => {
-                      setIsAddSizeOpen(open);
-                      if (!open) {
-                        setEditingSizeId(null);
-                        setNewSize({ name: '', description: '', width: 35, height: 45, unit: 'mm' });
-                      }
-                    }}>
-                      <DialogTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 px-2 text-primary font-bold">
-                          <Plus className="h-4 w-4 mr-1" /> New Size
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="sm:max-w-md">
-                        <DialogHeader>
-                          <DialogTitle>{editingSizeId ? 'Edit' : 'Add'} Size</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4 py-4">
-                          <div className="space-y-2">
-                            <Label>Name</Label>
-                            <Input placeholder="e.g., My Visa Size" value={newSize.name} onChange={(e) => setNewSize({...newSize, name: e.target.value})} />
-                          </div>
-                          <div className="space-y-3">
-                            <Label>Dimensions</Label>
-                            <Tabs value={newSize.unit} onValueChange={(v) => handleUnitChange(v as Unit)}>
-                              <TabsList className="grid w-full grid-cols-4">
-                                <TabsTrigger value="mm">MM</TabsTrigger>
-                                <TabsTrigger value="cm">CM</TabsTrigger>
-                                <TabsTrigger value="in">IN</TabsTrigger>
-                                <TabsTrigger value="px">PX</TabsTrigger>
-                              </TabsList>
-                            </Tabs>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label className="text-xs uppercase">Width</Label>
-                                <Input type="number" value={newSize.width} onChange={(e) => setNewSize({...newSize, width: Number(e.target.value)})} />
-                              </div>
-                              <div className="space-y-2">
-                                <Label className="text-xs uppercase">Height</Label>
-                                <Input type="number" value={newSize.height} onChange={(e) => setNewSize({...newSize, height: Number(e.target.value)})} />
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="sm" className="h-8 px-2 text-primary font-bold" onClick={handleEditCurrentSize}>
+                        <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+                      </Button>
+                      <Dialog open={isAddSizeOpen} onOpenChange={(open) => {
+                        setIsAddSizeOpen(open);
+                        if (!open) {
+                          setEditingSizeId(null);
+                          setNewSize({ name: '', description: '', width: 35, height: 45, unit: 'mm' });
+                        }
+                      }}>
+                        <DialogTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 px-2 text-primary font-bold">
+                            <Plus className="h-4 w-4 mr-1" /> New
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-md">
+                          <DialogHeader>
+                            <DialogTitle>{editingSizeId ? 'Edit' : 'Add'} Size</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                              <Label>Name</Label>
+                              <Input placeholder="e.g., My Visa Size" value={newSize.name} onChange={(e) => setNewSize({...newSize, name: e.target.value})} />
+                            </div>
+                            <div className="space-y-3">
+                              <Label>Dimensions</Label>
+                              <Tabs value={newSize.unit} onValueChange={(v) => handleUnitChange(v as Unit)}>
+                                <TabsList className="grid w-full grid-cols-4">
+                                  <TabsTrigger value="mm">MM</TabsTrigger>
+                                  <TabsTrigger value="cm">CM</TabsTrigger>
+                                  <TabsTrigger value="in">IN</TabsTrigger>
+                                  <TabsTrigger value="px">PX</TabsTrigger>
+                                </TabsList>
+                              </Tabs>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label className="text-xs uppercase">Width</Label>
+                                  <Input type="number" value={newSize.width} onChange={(e) => setNewSize({...newSize, width: Number(e.target.value)})} />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label className="text-xs uppercase">Height</Label>
+                                  <Input type="number" value={newSize.height} onChange={(e) => setNewSize({...newSize, height: Number(e.target.value)})} />
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
-                        <DialogFooter>
-                          <Button onClick={handleSaveCustomSize}>Save Size</Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
+                          <DialogFooter>
+                            <Button onClick={handleSaveCustomSize}>Save Size</Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
                   </div>
                   
                   <div className="flex gap-2">
