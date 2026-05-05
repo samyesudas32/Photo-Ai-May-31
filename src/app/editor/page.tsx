@@ -816,7 +816,7 @@ export default function EditorPage() {
                             <Tabs value={newSize.unit} onValueChange={(v) => handleUnitChange(v as Unit)}>
                               <TabsList className="grid w-full grid-cols-4">
                                 <TabsTrigger value="mm">MM</TabsTrigger>
-                                <TabsTrigger value="cm">CM</TabsTrigger Cooper 
+                                <TabsTrigger value="cm">CM</TabsTrigger>
                                 <TabsTrigger value="in">IN</TabsTrigger>
                                 <TabsTrigger value="px">PX</TabsTrigger>
                               </TabsList>
