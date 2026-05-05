@@ -17,7 +17,8 @@ import {
   Ruler,
   LayoutGrid,
   Pencil,
-  CheckCircle2
+  CheckCircle2,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -52,6 +53,7 @@ import {
 } from "@/firebase";
 import { doc, collection, query, orderBy } from "firebase/firestore";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { initiateAnonymousSignIn } from "@/firebase/non-blocking-login";
 
 // CONSTANTS - High Precision 300 DPI for Professional Printing
 const DPI = 300;
@@ -85,6 +87,10 @@ const DEFAULT_SLOT_DATA = (sizeId: string): SlotData => ({
 export default function GridMakerPage() {
   const { user } = useUser();
   const db = useFirestore();
+  const { auth } = useMemoFirebase(() => {
+    const { initializeFirebase } = require('@/firebase');
+    return initializeFirebase();
+  }, []);
   const { toast } = useToast();
 
   // Canvas & Grid State
@@ -117,6 +123,13 @@ export default function GridMakerPage() {
   const bulkInputRef = useRef<HTMLInputElement>(null);
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
 
+  // Initialize Auth
+  useEffect(() => {
+    if (!user && auth) {
+      initiateAnonymousSignIn(auth);
+    }
+  }, [user, auth]);
+
   // Load User Data
   const userProfileRef = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
@@ -125,12 +138,76 @@ export default function GridMakerPage() {
 
   const { data: profile } = useDoc<any>(userProfileRef);
 
+  // Ensure User Profile exists
+  useEffect(() => {
+    if (user && db && !profile) {
+      setDocumentNonBlocking(doc(db, 'users', user.uid), {
+        id: user.uid,
+        email: user.email || 'anonymous@pixelpass.ai',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    }
+  }, [user, db, profile]);
+
   const customSizesQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
     return query(collection(db, 'users', user.uid, 'custom_passport_sizes'), orderBy('order', 'asc'));
   }, [db, user]);
 
-  const { data: customSizes } = useCollection<CustomSize>(customSizesQuery);
+  const { data: customSizes, isLoading: isSizesLoading } = useCollection<CustomSize>(customSizesQuery);
+
+  // Seed default sizes and handle selection
+  useEffect(() => {
+    if (user && db && customSizes && customSizes.length === 0 && !isSizesLoading) {
+      const defaultSizes = [
+        {
+          id: 'default-passport',
+          name: 'Passport Photo',
+          description: 'Standard International (35x45mm)',
+          widthCm: 3.5,
+          heightCm: 4.5,
+          order: 0
+        },
+        {
+          id: 'default-stamp',
+          name: 'Stamp Size',
+          description: 'Small format for documents (20x25mm)',
+          widthCm: 2.0,
+          heightCm: 2.5,
+          order: 1
+        },
+        {
+          id: 'default-pan',
+          name: 'PAN Card Size',
+          description: 'Official Indian PAN Card (25x35mm)',
+          widthCm: 2.5,
+          heightCm: 3.5,
+          order: 2
+        }
+      ];
+
+      defaultSizes.forEach(size => {
+        setDocumentNonBlocking(
+          doc(db, 'users', user.uid, 'custom_passport_sizes', size.id),
+          {
+            ...size,
+            userId: user.uid,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          },
+          { merge: true }
+        );
+      });
+    }
+  }, [user, db, customSizes, isSizesLoading]);
+
+  // Handle initial selection once sizes are loaded
+  useEffect(() => {
+    if (customSizes && customSizes.length > 0 && !selectedSizeId) {
+      setSelectedSizeId(customSizes[0].id);
+    }
+  }, [customSizes, selectedSizeId]);
 
   // Initialize slots when grid dimensions change
   useEffect(() => {
@@ -158,6 +235,7 @@ export default function GridMakerPage() {
   const getSizeFromId = useCallback((sizeId: string) => {
     const size = customSizes?.find(s => s.id === sizeId);
     if (size) return { widthCm: size.widthCm, heightCm: size.heightCm };
+    // Fallbacks if seeding is still happening or for old data
     if (sizeId === 'default-passport') return { widthCm: 3.5, heightCm: 4.5 };
     if (sizeId === 'default-stamp') return { widthCm: 2.0, heightCm: 2.5 };
     if (sizeId === 'default-pan') return { widthCm: 2.5, heightCm: 3.5 };
@@ -189,7 +267,7 @@ export default function GridMakerPage() {
           const colIndices = getColumnIndices(activeSlot);
           colIndices.forEach(idx => {
             newSlots[idx] = { 
-              ...DEFAULT_SLOT_DATA(selectedSizeId),
+              ...newSlots[idx],
               url: newData, 
             };
           });
@@ -233,7 +311,7 @@ export default function GridMakerPage() {
       const colIndices = getColumnIndices(targetIndex);
       colIndices.forEach(colIdx => {
         newSlots[colIdx] = { 
-          ...DEFAULT_SLOT_DATA(selectedSizeId),
+          ...newSlots[colIdx],
           url: data, 
         };
       });
@@ -248,7 +326,7 @@ export default function GridMakerPage() {
 
   const handleRemove = (index: number) => {
     const newSlots = [...slots];
-    newSlots[index] = DEFAULT_SLOT_DATA(newSlots[index].sizeId);
+    newSlots[index] = { ...newSlots[index], url: null };
     setSlots(newSlots);
     toast({ title: "Photo Removed", description: "Slot cleared." });
   };
@@ -295,7 +373,10 @@ export default function GridMakerPage() {
   };
 
   const handleSaveCustomSize = () => {
-    if (!user || !db) return;
+    if (!user || !db) {
+      toast({ variant: "destructive", title: "Auth Required", description: "Please wait for authentication to complete." });
+      return;
+    }
     if (!newSize.name || !newSize.width || !newSize.height) {
       toast({ variant: "destructive", title: "Missing Information", description: "Please provide a name and dimensions." });
       return;
@@ -311,7 +392,7 @@ export default function GridMakerPage() {
       id: sizeId,
       userId: user.uid,
       name: newSize.name,
-      description: newSize.description || '',
+      description: newSize.description || 'Custom size definition',
       widthCm: Number(widthInCm.toFixed(2)),
       heightCm: Number(heightInCm.toFixed(2)),
       order: existingSize ? existingSize.order : (customSizes?.length || 0),
@@ -323,7 +404,7 @@ export default function GridMakerPage() {
     setIsAddSizeOpen(false);
     setEditingSizeId(null);
     setNewSize({ name: '', description: '', width: 35, height: 45, unit: 'mm' });
-    toast({ title: editingSizeId ? "Size Updated" : "Size Saved" });
+    toast({ title: editingSizeId ? "Size Updated" : "Size Saved", description: "Changes synced successfully." });
   };
 
   const handleEditSize = (size: CustomSize) => {
@@ -341,7 +422,7 @@ export default function GridMakerPage() {
   const handleDeleteSize = (sizeId: string) => {
     if (!user || !db) return;
     deleteDocumentNonBlocking(doc(db, 'users', user.uid, 'custom_passport_sizes', sizeId));
-    if (selectedSizeId === sizeId) setSelectedSizeId('default-passport');
+    if (selectedSizeId === sizeId) setSelectedSizeId(customSizes?.length ? customSizes[0].id : 'default-passport');
     toast({ title: "Size Deleted" });
   };
 
@@ -437,7 +518,7 @@ export default function GridMakerPage() {
         ctx.restore();
         
         ctx.strokeStyle = "#000000";
-        ctx.lineWidth = 3; // Professional 3px black border
+        ctx.lineWidth = 3; 
         ctx.strokeRect(x + 1.5, y + 1.5, slotWidth - 3, slotHeight - 3);
       }
     });
@@ -640,24 +721,49 @@ export default function GridMakerPage() {
                   <div className="flex gap-2">
                     <Select value={selectedSizeId} onValueChange={handleSizeChange}>
                       <SelectTrigger className="w-full rounded-xl">
-                        <SelectValue placeholder="Select photo size" />
+                        <SelectValue placeholder={isSizesLoading ? "Loading sizes..." : "Select photo size"}>
+                          {isSizesLoading ? (
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="h-3 w-3 animate-spin" /> Loading...
+                            </div>
+                          ) : (
+                            customSizes?.find(s => s.id === selectedSizeId)?.name || "Select size"
+                          )}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="default-passport">Passport (3.5 x 4.5 cm)</SelectItem>
-                        <SelectItem value="default-stamp">Stamp Size (2.0 x 2.5 cm)</SelectItem>
-                        <SelectItem value="default-pan">PAN Card (2.5 x 3.5 cm)</SelectItem>
-                        {customSizes?.map(size => (
-                          <SelectItem key={size.id} value={size.id}>{size.name} ({size.widthCm}x{size.heightCm}cm)</SelectItem>
-                        ))}
+                        {isSizesLoading ? (
+                          <div className="flex items-center justify-center py-4">
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          </div>
+                        ) : (
+                          customSizes?.map(size => (
+                            <SelectItem key={size.id} value={size.id}>
+                              {size.name} ({size.widthCm}x{size.heightCm}cm)
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                     {customSizes?.find(s => s.id === selectedSizeId) && (
-                      <Button variant="outline" size="icon" className="rounded-xl shrink-0" onClick={() => handleEditSize(customSizes.find(s => s.id === selectedSizeId)!)}>
+                      <Button 
+                        variant="outline" 
+                        size="icon" 
+                        className="rounded-xl shrink-0" 
+                        onClick={() => handleEditSize(customSizes.find(s => s.id === selectedSizeId)!)}
+                        title="Edit size"
+                      >
                         <Pencil className="h-4 w-4" />
                       </Button>
                     )}
                     {customSizes?.find(s => s.id === selectedSizeId) && (
-                      <Button variant="outline" size="icon" className="rounded-xl shrink-0 text-destructive hover:bg-destructive/10" onClick={() => handleDeleteSize(selectedSizeId)}>
+                      <Button 
+                        variant="outline" 
+                        size="icon" 
+                        className="rounded-xl shrink-0 text-destructive hover:bg-destructive/10" 
+                        onClick={() => handleDeleteSize(selectedSizeId)}
+                        title="Delete size"
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     )}
@@ -671,11 +777,11 @@ export default function GridMakerPage() {
                       <div key={i} className="relative group">
                         <div
                           className={cn(
-                            "aspect-[35/45] w-full border-2 border-dashed rounded-lg flex flex-col items-center justify-center overflow-hidden transition-all bg-muted/10",
+                            "aspect-[35/45] w-full border-2 border-dashed rounded-lg flex flex-col items-center justify-center overflow-hidden transition-all bg-muted/10 cursor-pointer",
                             slot.url ? "border-solid border-primary bg-white shadow-sm" : "border-muted",
                             activeSlot === i && "ring-2 ring-primary ring-offset-2"
                           )}
-                          onClick={() => !slot.url && handleSlotClick(i)}
+                          onClick={() => handleSlotClick(i)}
                         >
                           {slot.url ? (
                             <div className="relative w-full h-full group/image">
@@ -733,3 +839,4 @@ export default function GridMakerPage() {
     </div>
   );
 }
+
