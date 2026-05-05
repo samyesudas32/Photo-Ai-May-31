@@ -14,7 +14,8 @@ import {
   Shirt,
   User,
   Briefcase,
-  Plus
+  Plus,
+  Pencil
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -44,7 +45,8 @@ import {
   useCollection, 
   useDoc,
   useMemoFirebase,
-  setDocumentNonBlocking 
+  setDocumentNonBlocking,
+  deleteDocumentNonBlocking
 } from "@/firebase";
 import { collection, doc } from "firebase/firestore";
 import { initiateAnonymousSignIn } from "@/firebase/non-blocking-login";
@@ -63,6 +65,7 @@ interface CustomSize {
   heightCm: number;
   userId: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 const PRESET_BG_COLORS = [
@@ -82,6 +85,7 @@ export default function EditorPage() {
   const [selectedSizeId, setSelectedSizeId] = useState<string>('standard');
   const [selectedBgColor, setSelectedBgColor] = useState<string>('#FFFFFF');
   const [isAddSizeOpen, setIsAddSizeOpen] = useState(false);
+  const [editingSizeId, setEditingSizeId] = useState<string | null>(null);
   
   const [newSize, setNewSize] = useState({
     name: '',
@@ -111,7 +115,6 @@ export default function EditorPage() {
 
   const { data: profile } = useDoc<any>(userProfileRef);
 
-  // Initialize profile document if it doesn't exist
   useEffect(() => {
     if (user && db && !profile && !isProcessing) {
       setDocumentNonBlocking(doc(db, 'users', user.uid), {
@@ -193,7 +196,7 @@ export default function EditorPage() {
     const widthInCm = convertToCm(newSize.width, newSize.unit);
     const heightInCm = convertToCm(newSize.height, newSize.unit);
 
-    const sizeId = doc(collection(db, 'users', user.uid, 'custom_passport_sizes')).id;
+    const sizeId = editingSizeId || doc(collection(db, 'users', user.uid, 'custom_passport_sizes')).id;
     const sizeData: CustomSize = {
       id: sizeId,
       userId: user.uid,
@@ -201,7 +204,8 @@ export default function EditorPage() {
       description: newSize.description,
       widthCm: Number(widthInCm.toFixed(2)),
       heightCm: Number(heightInCm.toFixed(2)),
-      createdAt: new Date().toISOString()
+      createdAt: editingSizeId ? (customSizes?.find(s => s.id === editingSizeId)?.createdAt || new Date().toISOString()) : new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
 
     setDocumentNonBlocking(
@@ -211,10 +215,35 @@ export default function EditorPage() {
     );
 
     setIsAddSizeOpen(false);
+    setEditingSizeId(null);
     setNewSize({ name: '', description: '', width: 5.1, height: 5.1, unit: 'cm' });
     toast({
-      title: "Size Saved",
-      description: "Your custom passport size has been saved.",
+      title: editingSizeId ? "Size Updated" : "Size Saved",
+      description: `Your custom passport size has been ${editingSizeId ? 'updated' : 'saved'}.`,
+    });
+  };
+
+  const handleEditSize = (size: CustomSize) => {
+    setEditingSizeId(size.id);
+    setNewSize({
+      name: size.name,
+      description: size.description,
+      width: size.widthCm,
+      height: size.heightCm,
+      unit: 'cm'
+    });
+    setIsAddSizeOpen(true);
+  };
+
+  const handleDeleteSize = (sizeId: string) => {
+    if (!user || !db) return;
+    deleteDocumentNonBlocking(doc(db, 'users', user.uid, 'custom_passport_sizes', sizeId));
+    if (selectedSizeId === sizeId) {
+      setSelectedSizeId('standard');
+    }
+    toast({
+      title: "Size Deleted",
+      description: "The custom size has been removed.",
     });
   };
 
@@ -479,7 +508,13 @@ export default function EditorPage() {
                 <div className="space-y-4 pt-4 border-t">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Photo Size</Label>
-                    <Dialog open={isAddSizeOpen} onOpenChange={setIsAddSizeOpen}>
+                    <Dialog open={isAddSizeOpen} onOpenChange={(open) => {
+                      setIsAddSizeOpen(open);
+                      if (!open) {
+                        setEditingSizeId(null);
+                        setNewSize({ name: '', description: '', width: 5.1, height: 5.1, unit: 'cm' });
+                      }
+                    }}>
                       <DialogTrigger asChild>
                         <Button variant="ghost" size="sm" className="h-8 px-2 text-primary">
                           <Plus className="h-4 w-4 mr-1" /> Custom Size
@@ -487,7 +522,7 @@ export default function EditorPage() {
                       </DialogTrigger>
                       <DialogContent className="sm:max-w-md">
                         <DialogHeader>
-                          <DialogTitle>Add Custom Passport Size</DialogTitle>
+                          <DialogTitle>{editingSizeId ? 'Edit' : 'Add'} Custom Passport Size</DialogTitle>
                           <DialogDescription>Define specific dimensions for your photo requirements.</DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4 py-4">
@@ -556,7 +591,7 @@ export default function EditorPage() {
                     onValueChange={setSelectedSizeId}
                     className="space-y-2"
                   >
-                    <div className="flex items-center space-x-2 rounded-lg border p-3 hover:bg-accent cursor-pointer">
+                    <div className="flex items-center space-x-2 rounded-lg border p-3 hover:bg-accent cursor-pointer group">
                       <RadioGroupItem value="standard" id="standard" />
                       <Label htmlFor="standard" className="flex-1 cursor-pointer">
                         <div className="font-semibold">Standard Passport</div>
@@ -565,7 +600,7 @@ export default function EditorPage() {
                     </div>
 
                     {customSizes?.map((size) => (
-                      <div key={size.id} className="flex items-center space-x-2 rounded-lg border p-3 hover:bg-accent cursor-pointer">
+                      <div key={size.id} className="flex items-center space-x-2 rounded-lg border p-3 hover:bg-accent cursor-pointer group relative">
                         <RadioGroupItem value={size.id} id={size.id} />
                         <Label htmlFor={size.id} className="flex-1 cursor-pointer">
                           <div className="font-semibold">{size.name}</div>
@@ -573,6 +608,30 @@ export default function EditorPage() {
                             {size.widthCm} x {size.heightCm} cm • {size.description}
                           </div>
                         </Label>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-7 w-7 text-muted-foreground hover:text-primary"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditSize(size);
+                            }}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteSize(size.id);
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </RadioGroup>
