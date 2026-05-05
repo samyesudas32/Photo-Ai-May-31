@@ -25,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
 import Link from "next/link";
@@ -37,8 +38,6 @@ const CANVAS_HEIGHT_IN = 4;
 const DPI = 300;
 const CANVAS_WIDTH = CANVAS_WIDTH_IN * DPI; // 1800px
 const CANVAS_HEIGHT = CANVAS_HEIGHT_IN * DPI; // 1200px
-
-type LayoutPreset = 2 | 4 | 6 | 8;
 
 export default function GridMakerPage() {
   const [sourceImage, setSourceImage] = useState<string | null>(null);
@@ -66,7 +65,8 @@ export default function GridMakerPage() {
     if (photoCount <= 2) { setCols(2); setRows(1); }
     else if (photoCount <= 4) { setCols(2); setRows(2); }
     else if (photoCount <= 6) { setCols(3); setRows(2); }
-    else { setCols(Math.ceil(photoCount / 2)); setRows(2); }
+    else if (photoCount <= 9) { setCols(3); setRows(3); }
+    else { setCols(4); setRows(3); }
   }, [photoCount]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -92,6 +92,14 @@ export default function GridMakerPage() {
           description: "Please upload an image file (JPG, PNG).",
         });
       }
+    }
+  };
+
+  const handleCountInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseInt(e.target.value);
+    if (!isNaN(value)) {
+      // Clamp between 1 and 12 for the grid layout
+      setPhotoCount(Math.max(1, Math.min(12, value)));
     }
   };
 
@@ -268,7 +276,15 @@ export default function GridMakerPage() {
                     >
                       <Minus className="h-3 w-3" />
                     </Button>
-                    <span className="font-mono font-bold w-6 text-center">{photoCount}</span>
+                    <Input 
+                      type="number"
+                      min={1}
+                      max={12}
+                      value={photoCount}
+                      onChange={handleCountInputChange}
+                      className="h-8 w-14 text-center font-mono font-bold px-1"
+                      disabled={!sourceImage}
+                    />
                     <Button 
                       variant="outline" 
                       size="icon" 
