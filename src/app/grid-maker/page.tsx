@@ -13,11 +13,11 @@ import {
   Settings2,
   Trash2,
   Printer,
-  Minus,
-  Plus,
   Move,
   CheckCircle2,
-  Maximize2
+  Maximize2,
+  ChevronUp,
+  ChevronDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -64,10 +64,23 @@ export default function GridMakerPage() {
 
   // Auto-arrange logic
   useEffect(() => {
-    if (photoCount <= 2) { setCols(2); setRows(1); }
-    else if (photoCount <= 4) { setCols(2); setRows(2); }
-    else if (photoCount <= 6) { setCols(3); setRows(2); }
-    else { setCols(4); setRows(2); }
+    if (photoCount <= 2) { 
+      setCols(2); 
+      setRows(1); 
+    } else if (photoCount <= 4) { 
+      setCols(2); 
+      setRows(2); 
+    } else if (photoCount <= 6) { 
+      setCols(3); 
+      setRows(2); 
+    } else if (photoCount <= 8) { 
+      setCols(4); 
+      setRows(2); 
+    } else {
+      // For counts > 8, stick to 4 columns and expand rows
+      setCols(4);
+      setRows(Math.ceil(photoCount / 4));
+    }
   }, [photoCount]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -247,7 +260,7 @@ export default function GridMakerPage() {
               <CardContent className="space-y-6">
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-bold uppercase text-muted-foreground">Photo Copies</Label>
+                    <Label className="text-xs font-bold uppercase text-muted-foreground">Quick Presets</Label>
                   </div>
                   
                   <div className="grid grid-cols-4 gap-2">
@@ -264,17 +277,20 @@ export default function GridMakerPage() {
                     ))}
                   </div>
                   
-                  <div className="flex items-center justify-between pt-2">
-                    <Label className="text-sm font-semibold">Total Copies</Label>
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between pt-4 border-t">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-semibold">Total Copies</Label>
+                      <p className="text-[10px] text-muted-foreground">Adjust count (max 32)</p>
+                    </div>
+                    <div className="flex flex-col items-center gap-0">
                       <Button 
                         variant="outline" 
                         size="icon" 
-                        className="h-8 w-8 rounded-full"
-                        onClick={() => setPhotoCount(Math.max(1, photoCount - 1))}
-                        disabled={!sourceImage || photoCount <= 1}
+                        className="h-8 w-14 rounded-t-lg rounded-b-none border-b-0"
+                        onClick={() => setPhotoCount(Math.min(32, photoCount + 1))}
+                        disabled={!sourceImage || photoCount >= 32}
                       >
-                        <Minus className="h-3 w-3" />
+                        <ChevronUp className="h-4 w-4" />
                       </Button>
                       <Input 
                         type="number"
@@ -282,17 +298,17 @@ export default function GridMakerPage() {
                         max={32}
                         value={photoCount}
                         onChange={(e) => setPhotoCount(Math.max(1, Math.min(32, parseInt(e.target.value) || 1)))}
-                        className="h-8 w-14 text-center font-bold"
+                        className="h-9 w-14 text-center font-bold rounded-none border-y-0 focus-visible:ring-0"
                         disabled={!sourceImage}
                       />
                       <Button 
                         variant="outline" 
                         size="icon" 
-                        className="h-8 w-8 rounded-full"
-                        onClick={() => setPhotoCount(Math.min(32, photoCount + 1))}
-                        disabled={!sourceImage || photoCount >= 32}
+                        className="h-8 w-14 rounded-b-lg rounded-t-none border-t-0"
+                        onClick={() => setPhotoCount(Math.max(1, photoCount - 1))}
+                        disabled={!sourceImage || photoCount <= 1}
                       >
-                        <Plus className="h-3 w-3" />
+                        <ChevronDown className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
