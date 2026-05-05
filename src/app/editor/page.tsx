@@ -265,25 +265,48 @@ export default function EditorPage() {
 
   const { data: customSizes } = useCollection<CustomSize>(customSizesQuery);
 
-  // Seed default size for new users and handle selection
+  // Seed default sizes for new users and handle selection
   useEffect(() => {
     if (user && db && customSizes && customSizes.length === 0) {
-      const sizeId = 'default-standard-passport';
-      setDocumentNonBlocking(
-        doc(db, 'users', user.uid, 'custom_passport_sizes', sizeId),
+      const defaultSizes = [
         {
-          id: sizeId,
-          userId: user.uid,
-          name: 'Standard Passport',
-          description: 'Official 2x2 inch (5.1 x 5.1 cm)',
-          widthCm: 5.1,
-          heightCm: 5.1,
-          order: 0,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          id: 'default-passport',
+          name: 'Passport Photo',
+          description: 'Standard International (35x45mm)',
+          widthCm: 3.5,
+          heightCm: 4.5,
+          order: 0
         },
-        { merge: true }
-      );
+        {
+          id: 'default-stamp',
+          name: 'Stamp Size',
+          description: 'Small format for documents (20x25mm)',
+          widthCm: 2.0,
+          heightCm: 2.5,
+          order: 1
+        },
+        {
+          id: 'default-pan',
+          name: 'PAN Card Size',
+          description: 'Official Indian PAN Card (25x35mm)',
+          widthCm: 2.5,
+          heightCm: 3.5,
+          order: 2
+        }
+      ];
+
+      defaultSizes.forEach(size => {
+        setDocumentNonBlocking(
+          doc(db, 'users', user.uid, 'custom_passport_sizes', size.id),
+          {
+            ...size,
+            userId: user.uid,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          },
+          { merge: true }
+        );
+      });
     }
   }, [user, db, customSizes]);
 
@@ -391,8 +414,8 @@ export default function EditorPage() {
     setNewSize({
       name: size.name,
       description: size.description,
-      width: size.widthCm * 10,
-      height: size.heightCm * 10,
+      width: Math.round(size.widthCm * 10),
+      height: Math.round(size.heightCm * 10),
       unit: 'mm'
     });
     setIsAddSizeOpen(true);
