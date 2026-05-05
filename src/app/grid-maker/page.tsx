@@ -149,10 +149,8 @@ export default function GridMakerPage() {
     const loadedFiles = await Promise.all(fileLoadPromises);
 
     targetIndices.forEach((targetIndex, idx) => {
-      // Use the specific file if multiple provided, otherwise repeat the first one
       const data = loadedFiles.length > 1 ? (loadedFiles[idx]?.data || loadedFiles[0].data) : loadedFiles[0].data;
       
-      // Vertical Sync: Always update the column pair for distributed photos
       const counterpart = getVerticalCounterpart(targetIndex);
       newSlots[targetIndex] = data;
       newSlots[counterpart] = data;
@@ -171,7 +169,7 @@ export default function GridMakerPage() {
 
   const handleRemove = (index: number) => {
     const newSlots = [...slots];
-    // One-by-one removal as requested: only clear the specific slot clicked
+    // One-by-one removal: only clear the specific slot clicked
     newSlots[index] = null;
     
     setSlots(newSlots);
@@ -195,12 +193,10 @@ export default function GridMakerPage() {
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
 
-    // Clear and fill white background
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    // Load all images first for reliable rendering
     const loadPromises = slots.map((uri, i) => {
       if (!uri) return Promise.resolve(null);
       return new Promise<HTMLImageElement | null>((resolve) => {
@@ -244,7 +240,6 @@ export default function GridMakerPage() {
 
       ctx.drawImage(img, drawX, drawY, drawW, drawH);
       
-      // Apply 3px black stroke inside the clipping area to maintain size
       ctx.strokeStyle = "#000000";
       ctx.lineWidth = 3;
       ctx.strokeRect(x + 1.5, y + 1.5, SLOT_WIDTH - 3, SLOT_HEIGHT - 3);
@@ -301,7 +296,7 @@ export default function GridMakerPage() {
               <Grid3X3 className="h-8 w-8" /> HD Print Setup
             </h1>
             <p className="text-muted-foreground text-sm font-medium">
-              4x2 Grid (1800x1200px @ 300DPI). Columns sync on upload; delete slots one-by-one.
+              Precision 6x4in Sheet (300DPI). 0.52cm margins and gaps. One-by-one slot removal.
             </p>
           </div>
           
@@ -466,7 +461,7 @@ export default function GridMakerPage() {
                 <CheckCircle2 className="h-3 w-3 text-green-500" /> Precision Grid
               </h4>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Vertical column sync ensures perfect alignment. Use individual trash icons to clear specific slots.
+                6x4in HD Output. Slots sync vertically on upload but can be deleted one-by-one.
               </p>
             </div>
           </div>
@@ -500,10 +495,10 @@ export default function GridMakerPage() {
 
               <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-8 w-full max-w-xl">
                 {[
-                  { label: "Format", val: "6 x 4 in" },
+                  { label: "Width", val: "6 in" },
+                  { label: "Height", val: "4 in" },
                   { label: "Resolution", val: "300 DPI" },
-                  { label: "Spacing", val: "0.52 cm" },
-                  { label: "Quality", val: "HD Export" }
+                  { label: "Internal Gap", val: "0.52 cm" }
                 ].map((spec, i) => (
                   <div key={i} className="text-center">
                     <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">{spec.label}</p>
