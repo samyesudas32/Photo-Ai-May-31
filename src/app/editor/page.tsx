@@ -51,7 +51,7 @@ import { initiateAnonymousSignIn } from "@/firebase/non-blocking-login";
 import { cn } from "@/lib/utils";
 
 type CoatStyle = 'none' | 'suit' | 'blazer' | 'overcoat';
-type Unit = 'cm' | 'in' | 'px';
+type Unit = 'cm' | 'mm' | 'in' | 'px';
 
 const DPI = 300;
 
@@ -153,6 +153,7 @@ export default function EditorPage() {
 
   const convertToCm = (val: number, fromUnit: Unit): number => {
     if (fromUnit === 'cm') return val;
+    if (fromUnit === 'mm') return val / 10;
     if (fromUnit === 'in') return val * 2.54;
     if (fromUnit === 'px') return (val / DPI) * 2.54;
     return val;
@@ -160,6 +161,7 @@ export default function EditorPage() {
 
   const convertFromCm = (cm: number, toUnit: Unit): number => {
     if (toUnit === 'cm') return cm;
+    if (toUnit === 'mm') return cm * 10;
     if (toUnit === 'in') return cm / 2.54;
     if (toUnit === 'px') return (cm / 2.54) * DPI;
     return cm;
@@ -510,8 +512,9 @@ export default function EditorPage() {
                           <div className="space-y-3">
                             <Label>Dimensions</Label>
                             <Tabs value={newSize.unit} onValueChange={(v) => handleUnitChange(v as Unit)}>
-                              <TabsList className="grid w-full grid-cols-3">
+                              <TabsList className="grid w-full grid-cols-4">
                                 <TabsTrigger value="cm">CM</TabsTrigger>
+                                <TabsTrigger value="mm">MM</TabsTrigger>
                                 <TabsTrigger value="in">IN</TabsTrigger>
                                 <TabsTrigger value="px">PX</TabsTrigger>
                               </TabsList>
@@ -522,7 +525,7 @@ export default function EditorPage() {
                                 <Input 
                                   id="width" 
                                   type="number" 
-                                  step={newSize.unit === 'px' ? "1" : "0.01"}
+                                  step={newSize.unit === 'px' || newSize.unit === 'mm' ? "1" : "0.01"}
                                   value={newSize.width}
                                   onChange={(e) => setNewSize({...newSize, width: Number(e.target.value)})}
                                 />
@@ -532,7 +535,7 @@ export default function EditorPage() {
                                 <Input 
                                   id="height" 
                                   type="number" 
-                                  step={newSize.unit === 'px' ? "1" : "0.01"}
+                                  step={newSize.unit === 'px' || newSize.unit === 'mm' ? "1" : "0.01"}
                                   value={newSize.height}
                                   onChange={(e) => setNewSize({...newSize, height: Number(e.target.value)})}
                                 />
