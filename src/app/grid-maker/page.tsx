@@ -14,10 +14,22 @@ import {
   X,
   FileImage,
   ShieldCheck,
-  CheckCircle2
+  CheckCircle2,
+  Layers
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger,
+  DialogFooter,
+  DialogDescription
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
 import Link from "next/link";
@@ -40,8 +52,6 @@ const ROWS = 2;
 const TOTAL_SLOTS = COLS * ROWS;
 
 // CALCULATE SLOT DIMENSIONS based on uniform margins and gaps (0.52cm)
-// Margin-L + SlotW + Gap + SlotW + Gap + SlotW + Gap + SlotW + Margin-R = 1800
-// 1800 - (5 * 0.52cm) / 4 = SlotW
 const SLOT_WIDTH = (CANVAS_WIDTH - (SPACING_PX * (COLS + 1))) / COLS;
 const SLOT_HEIGHT = (CANVAS_HEIGHT - (SPACING_PX * (ROWS + 1))) / ROWS;
 
@@ -49,8 +59,14 @@ export default function GridMakerPage() {
   const [slots, setSlots] = useState<(string | null)[]>(Array(TOTAL_SLOTS).fill(null));
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
   
+  // Targeted Distribution State
+  const [isDistributionOpen, setIsDistributionOpen] = useState(false);
+  const [targetSlotString, setTargetSlotString] = useState("");
+  const [bulkFiles, setBulkFiles] = useState<File[]>([]);
+  
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bulkInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const handleSlotClick = (index: number) => {
@@ -78,6 +94,60 @@ export default function GridMakerPage() {
       }
     }
     e.target.value = "";
+  };
+
+  const handleBulkFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setBulkFiles(Array.from(e.target.files).filter(f => f.type.startsWith("image/")));
+    }
+  };
+
+  const handleProcessBulk = async () => {
+    const targetIndices = targetSlotString
+      .split(',')
+      .map(s => parseInt(s.trim()) - 1)
+      .filter(n => !isNaN(n) && n >= 0 && n < TOTAL_SLOTS);
+
+    if (targetIndices.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Slots",
+        description: "Please enter valid slot numbers (1-8).",
+      });
+      return;
+    }
+
+    if (bulkFiles.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "No Photos",
+        description: "Please select photos to upload.",
+      });
+      return;
+    }
+
+    const newSlots = [...slots];
+    const fileLoadPromises = bulkFiles.slice(0, targetIndices.length).map((file, idx) => {
+      return new Promise<void>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          newSlots[targetIndices[idx]] = reader.result as string;
+          resolve();
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+
+    await Promise.all(fileLoadPromises);
+    setSlots(newSlots);
+    setIsDistributionOpen(false);
+    setTargetSlotString("");
+    setBulkFiles([]);
+    
+    toast({
+      title: "Bulk Distribution Complete",
+      description: `Updated ${fileLoadPromises.length} assigned slots.`,
+    });
   };
 
   const handleRemove = (index: number) => {
@@ -108,16 +178,13 @@ export default function GridMakerPage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Set HD rendering quality
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
 
-    // Clear and fill white background
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    // Load and draw all images
     slots.forEach((uri, i) => {
       if (!uri) return;
 
@@ -151,7 +218,6 @@ export default function GridMakerPage() {
 
         ctx.drawImage(img, drawX, drawY, drawW, drawH);
         
-        // 3px Black Border (Stroke) - Applied to each photo for precise trimming
         ctx.strokeStyle = "#000000";
         ctx.lineWidth = 3;
         ctx.strokeRect(x + 1.5, y + 1.5, SLOT_WIDTH - 3, SLOT_HEIGHT - 3);
@@ -171,26 +237,16 @@ export default function GridMakerPage() {
     if (!canvasRef.current) return;
     const link = document.createElement("a");
     link.download = `pixelpass-hd-print-sheet.jpg`;
-    // Use maximum quality (1.0) for HD JPEG export
     link.href = canvasRef.current.toDataURL("image/jpeg", 1.0);
     link.click();
-    toast({
-      title: "HD JPG Downloaded",
-      description: "Maximum 300 DPI quality preserved.",
-    });
   };
 
   const downloadPNG = () => {
     if (!canvasRef.current) return;
     const link = document.createElement("a");
     link.download = `pixelpass-hd-print-sheet.png`;
-    // PNG is lossless by default
     link.href = canvasRef.current.toDataURL("image/png");
     link.click();
-    toast({
-      title: "HD PNG Downloaded",
-      description: "Lossless quality preserved.",
-    });
   };
 
   const downloadPDF = () => {
@@ -200,14 +256,9 @@ export default function GridMakerPage() {
       unit: "in",
       format: [6, 4]
     });
-    // Use PNG for PDF content to maintain maximum lossless quality
     const imgData = canvasRef.current.toDataURL("image/png");
     pdf.addImage(imgData, "PNG", 0, 0, 6, 4);
     pdf.save(`pixelpass-hd-print-sheet.pdf`);
-    toast({
-      title: "HD PDF Exported",
-      description: "Lossless 6x4in format preserved.",
-    });
   };
 
   return (
@@ -222,41 +273,100 @@ export default function GridMakerPage() {
                 <ArrowLeft className="h-4 w-4 mr-2" /> Back to Home
               </Link>
             </Button>
-            <h1 className="text-3xl font-bold tracking-tight text-primary">Precision HD Sheet Generator</h1>
-            <p className="text-muted-foreground text-sm font-medium uppercase flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-green-500" />
-              6x4 INCH • 300 DPI • LOSSLESS HD EXPORT
+            <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
+              <Grid3X3 className="h-8 w-8" /> HD Print Setup
+            </h1>
+            <p className="text-muted-foreground text-sm font-medium">
+              Use individual slots, or input multiple slot numbers below for bulk distribution. The final 4×2 grid maintains absolute 0.52cm margins for printing.
             </p>
           </div>
+          
+          <Dialog open={isDistributionOpen} onOpenChange={setIsDistributionOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-primary hover:bg-primary/90 text-white font-bold rounded-full shadow-lg">
+                <Layers className="mr-2 h-4 w-4" /> Targeted Distribution
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Targeted Slot Distribution</DialogTitle>
+                <DialogDescription>
+                  Enter destination slot number(s) and select photos for bulk assignment.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-6 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="slots-input" className="text-sm font-semibold">
+                    Enter Destination Slot Number(s) (e.g., 2, 5, 6):
+                  </Label>
+                  <Input 
+                    id="slots-input"
+                    placeholder="2, 5, 6"
+                    value={targetSlotString}
+                    onChange={(e) => setTargetSlotString(e.target.value)}
+                    className="border-2 focus-visible:ring-primary"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Select Photos for Assigned Slots:</Label>
+                  <div 
+                    className="border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-accent/50 transition-colors"
+                    onClick={() => bulkInputRef.current?.click()}
+                  >
+                    <Plus className="h-8 w-8 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground font-medium">
+                      {bulkFiles.length > 0 ? `${bulkFiles.length} photos selected` : "Select Photos for Assigned Slots:"}
+                    </p>
+                    <input 
+                      type="file" 
+                      multiple 
+                      ref={bulkInputRef}
+                      className="hidden" 
+                      onChange={handleBulkFileChange}
+                      accept="image/*"
+                    />
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button 
+                  onClick={handleProcessBulk} 
+                  className="w-full bg-primary hover:bg-primary/90 font-bold h-12"
+                >
+                  Process and Upload to Selected Slots
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           <div className="lg:col-span-4 space-y-6">
-            <Card className="shadow-xl border-none">
-              <CardHeader>
+            <Card className="shadow-xl border-none bg-white">
+              <CardHeader className="pb-4">
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <Grid3X3 className="h-5 w-5 text-primary" /> HD Print Setup
+                  <Camera className="h-5 w-5 text-primary" /> Grid Slots
                 </CardTitle>
-                <CardDescription>Upload photos to individual slots. The 4x2 grid maintains absolute 0.52cm margins and gaps for high-quality printing.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-4 gap-3">
                   {slots.map((uri, i) => (
                     <div key={i} className="space-y-1">
                       <button
                         onClick={() => handleSlotClick(i)}
                         className={cn(
-                          "aspect-[35/45] w-full border-2 border-dashed rounded-lg flex items-center justify-center relative overflow-hidden transition-all hover:border-primary/50",
+                          "aspect-[35/45] w-full border-2 border-dashed rounded-xl flex items-center justify-center relative overflow-hidden transition-all hover:border-primary/50 group",
                           uri ? "border-solid border-primary bg-white shadow-sm" : "bg-muted/30 border-muted"
                         )}
                       >
                         {uri ? (
                           <Image src={uri} alt={`Slot ${i+1}`} fill className="object-cover" />
                         ) : (
-                          <Plus className="h-4 w-4 text-muted-foreground" />
+                          <Plus className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
                         )}
-                        <div className="absolute top-0 right-0 p-1">
-                           <span className="text-[8px] font-black bg-black text-white px-1 rounded">{i + 1}</span>
+                        <div className="absolute top-1 right-1">
+                           <span className="text-[9px] font-black bg-black/60 text-white px-1.5 rounded-sm">{i + 1}</span>
                         </div>
                       </button>
                       {uri && (
@@ -279,7 +389,7 @@ export default function GridMakerPage() {
                 <div className="pt-6 border-t space-y-3">
                   <div className="grid grid-cols-1 gap-3">
                     <Button 
-                      className="font-bold shadow-md h-12 bg-secondary hover:bg-secondary/90 relative group" 
+                      className="font-bold shadow-md h-12 bg-secondary hover:bg-secondary/90 relative" 
                       onClick={downloadPNG}
                       disabled={!slots.some(s => s !== null)}
                     >
@@ -287,7 +397,7 @@ export default function GridMakerPage() {
                       <span className="absolute -top-2 -right-2 bg-green-500 text-[8px] text-white px-1.5 py-0.5 rounded-full font-black">HD</span>
                     </Button>
                     <Button 
-                      className="font-bold shadow-md h-12 relative group" 
+                      className="font-bold shadow-md h-12 relative" 
                       onClick={downloadJPG}
                       disabled={!slots.some(s => s !== null)}
                     >
@@ -297,7 +407,7 @@ export default function GridMakerPage() {
                   </div>
                   <Button 
                     variant="outline" 
-                    className="w-full h-12 font-bold border-2 relative group" 
+                    className="w-full h-12 font-bold border-2 relative" 
                     onClick={downloadPDF}
                     disabled={!slots.some(s => s !== null)}
                   >
@@ -323,21 +433,19 @@ export default function GridMakerPage() {
               </CardContent>
             </Card>
             
-            <div className="space-y-4">
-              <div className="p-4 bg-primary/5 rounded-xl border border-primary/10">
-                <h4 className="text-xs font-black uppercase text-primary mb-2 flex items-center gap-2">
-                  <CheckCircle2 className="h-3 w-3 text-green-500" /> Print Optimized
-                </h4>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  All exports are strictly 300 DPI. We use lossless resampling algorithms to ensure your passport photos stay sharp and meet official biometric requirements.
-                </p>
-              </div>
+            <div className="p-4 bg-primary/5 rounded-xl border border-primary/10">
+              <h4 className="text-xs font-black uppercase text-primary mb-2 flex items-center gap-2">
+                <CheckCircle2 className="h-3 w-3 text-green-500" /> Print Optimized
+              </h4>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                6x4 INCH • 300 DPI • LOSSLESS HD EXPORT. Gaps and margins are strictly fixed at 0.52cm.
+              </p>
             </div>
           </div>
 
           <div className="lg:col-span-8">
-            <Card className="bg-slate-50 border-none flex flex-col items-center justify-center p-8 min-h-[600px] relative overflow-hidden">
-              <div className="relative shadow-2xl bg-white p-0 leading-[0]">
+            <Card className="bg-slate-50 border-none flex flex-col items-center justify-center p-8 min-h-[600px] relative">
+              <div className="relative shadow-2xl bg-white p-0">
                 <div 
                   className="relative bg-white overflow-hidden border border-slate-200"
                   style={{ 
@@ -355,19 +463,19 @@ export default function GridMakerPage() {
                   {!slots.some(s => s !== null) && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-12 pointer-events-none">
                       <Camera className="h-16 w-16 text-slate-200 mb-4" />
-                      <h3 className="text-lg font-bold text-slate-400">Sheet is Empty</h3>
-                      <p className="text-sm text-slate-400 max-w-xs">Upload your passport photos to the slots on the left to generate the print sheet.</p>
+                      <h3 className="text-lg font-bold text-slate-400 uppercase tracking-tighter">Canvas Empty</h3>
+                      <p className="text-xs text-slate-400 max-w-xs font-medium">Use Targeted Distribution or click individual slots to begin.</p>
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-12 w-full max-w-xl">
+              <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-8 w-full max-w-xl">
                 {[
-                  { label: "HD Format", val: "6 x 4 in" },
+                  { label: "Format", val: "6 x 4 in" },
                   { label: "Resolution", val: "300 DPI" },
-                  { label: "Gap/Margin", val: "0.52 cm" },
-                  { label: "Trimming", val: "3 px Stroke" }
+                  { label: "Spacing", val: "0.52 cm" },
+                  { label: "Quality", val: "HD Export" }
                 ].map((spec, i) => (
                   <div key={i} className="text-center">
                     <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">{spec.label}</p>
