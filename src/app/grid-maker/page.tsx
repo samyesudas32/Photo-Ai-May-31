@@ -17,7 +17,8 @@ import {
   Save,
   Ruler,
   LayoutGrid,
-  Maximize
+  Maximize,
+  RotateCcw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -53,6 +54,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 // CONSTANTS
 const DPI = 300;
 const CM_TO_PX = DPI / 2.54;
+const DEFAULT_SPACING = 0.52;
 
 interface CustomSize {
   id: string;
@@ -75,7 +77,7 @@ export default function GridMakerPage() {
   const [canvasDim, setCanvasDim] = useState({ width: 6, height: 4 }); // In inches
   const [numCols, setNumCols] = useState(4);
   const [numRows, setNumRows] = useState(2);
-  const [spacingCm, setSpacingCm] = useState(0.52); // Default gap
+  const [spacingCm, setSpacingCm] = useState(DEFAULT_SPACING); 
   const [selectedSizeId, setSelectedSizeId] = useState<string>('default-passport');
   
   const totalSlots = numCols * numRows;
@@ -392,6 +394,14 @@ export default function GridMakerPage() {
     pdf.save(`pixelpass-hd-sheet.pdf`);
   };
 
+  const handleResetSpacing = () => {
+    setSpacingCm(DEFAULT_SPACING);
+    toast({
+      title: "Spacing Reset",
+      description: `Gaps restored to official ${DEFAULT_SPACING}cm standard.`,
+    });
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <Header />
@@ -528,7 +538,18 @@ export default function GridMakerPage() {
                 <div className="space-y-4 pt-4 border-t">
                   <div className="flex items-center justify-between">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Gap Adjustment (cm)</Label>
-                    <span className="text-xs font-bold text-primary">{spacingCm} cm</span>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-6 w-6 text-muted-foreground hover:text-primary transition-colors"
+                        onClick={handleResetSpacing}
+                        title="Reset to 0.52cm"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                      </Button>
+                      <span className="text-xs font-bold text-primary">{spacingCm} cm</span>
+                    </div>
                   </div>
                   <Slider 
                     value={[spacingCm]} 
