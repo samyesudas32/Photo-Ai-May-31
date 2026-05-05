@@ -639,6 +639,72 @@ export default function EditorPage() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Moved Photo Styling below Official Standards */}
+            <Card className="bg-white/50 border-none shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <Palette className="h-4 w-4" /> Photo Styling
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-col sm:flex-row gap-6">
+                  <div className="flex-1 space-y-4">
+                    <Button
+                      variant={hasStroke ? "default" : "outline"}
+                      className="w-full justify-start gap-2"
+                      onClick={() => setHasStroke(!hasStroke)}
+                      disabled={isProcessing}
+                    >
+                      <Square className={cn(
+                        "h-4 w-4",
+                        hasStroke ? "fill-current" : ""
+                      )} />
+                      {hasStroke ? "Stroke Applied" : "Add Photo Stroke"}
+                    </Button>
+
+                    {hasStroke && (
+                      <div className="space-y-4 p-4 rounded-lg bg-white border animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-[10px] font-black uppercase text-muted-foreground">Stroke Color</Label>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-mono text-muted-foreground">{strokeColor}</span>
+                              <Input 
+                                type="color" 
+                                value={strokeColor} 
+                                onChange={(e) => setStrokeColor(e.target.value)}
+                                className="w-6 h-6 p-0 border-none bg-transparent cursor-pointer rounded-full overflow-hidden"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-[10px] font-black uppercase text-muted-foreground">Stroke Width</Label>
+                            <span className="text-[10px] font-bold text-primary">{strokeWidth}px</span>
+                          </div>
+                          <Slider 
+                            value={[strokeWidth]} 
+                            min={1} 
+                            max={10} 
+                            step={1} 
+                            onValueChange={(val) => setStrokeWidth(val[0])}
+                            className="py-2"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 flex flex-col justify-center">
+                    <p className="text-xs text-muted-foreground italic">
+                      Customizing the stroke allows you to clearly define the edges of your photo, which is helpful for manual cutting after printing.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="lg:col-span-4 space-y-6">
@@ -717,58 +783,6 @@ export default function EditorPage() {
                         {color.name}
                       </Button>
                     ))}
-                  </div>
-                </div>
-
-                <div className="space-y-4 pt-4 border-t">
-                  <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Photo Styling</Label>
-                  <div className="space-y-4">
-                    <Button
-                      variant={hasStroke ? "default" : "outline"}
-                      className="w-full justify-start gap-2"
-                      onClick={() => setHasStroke(!hasStroke)}
-                      disabled={isProcessing}
-                    >
-                      <Square className={cn(
-                        "h-4 w-4",
-                        hasStroke ? "fill-current" : ""
-                      )} />
-                      {hasStroke ? "Stroke Applied" : "Add Photo Stroke"}
-                    </Button>
-
-                    {hasStroke && (
-                      <div className="space-y-4 p-4 rounded-lg bg-muted/30 border animate-in fade-in slide-in-from-top-2 duration-300">
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-[10px] font-black uppercase text-muted-foreground">Stroke Color</Label>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-mono text-muted-foreground">{strokeColor}</span>
-                              <Input 
-                                type="color" 
-                                value={strokeColor} 
-                                onChange={(e) => setStrokeColor(e.target.value)}
-                                className="w-6 h-6 p-0 border-none bg-transparent cursor-pointer rounded-full overflow-hidden"
-                              />
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-[10px] font-black uppercase text-muted-foreground">Stroke Width</Label>
-                            <span className="text-[10px] font-bold text-primary">{strokeWidth}px</span>
-                          </div>
-                          <Slider 
-                            value={[strokeWidth]} 
-                            min={1} 
-                            max={10} 
-                            step={1} 
-                            onValueChange={(val) => setStrokeWidth(val[0])}
-                            className="py-2"
-                          />
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
 
