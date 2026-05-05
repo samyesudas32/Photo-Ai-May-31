@@ -18,7 +18,10 @@ import {
   Ruler,
   LayoutGrid,
   Maximize,
-  RotateCcw
+  RotateCcw,
+  Move,
+  ZoomIn,
+  Settings
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -66,7 +69,20 @@ interface CustomSize {
 interface SlotData {
   url: string | null;
   sizeId: string;
+  panX: number;
+  panY: number;
+  rotation: number;
+  scale: number;
 }
+
+const DEFAULT_SLOT_DATA = (sizeId: string): SlotData => ({
+  url: null,
+  sizeId: sizeId,
+  panX: 0,
+  panY: 0,
+  rotation: 0,
+  scale: 1,
+});
 
 export default function GridMakerPage() {
   const { user } = useUser();
@@ -86,10 +102,7 @@ export default function GridMakerPage() {
   // Initialize slots when grid dimensions change
   useEffect(() => {
     setSlots(prev => {
-      const newSlots: SlotData[] = Array(totalSlots).fill(null).map(() => ({ 
-        url: null, 
-        sizeId: selectedSizeId 
-      }));
+      const newSlots: SlotData[] = Array(totalSlots).fill(null).map(() => DEFAULT_SLOT_DATA(selectedSizeId));
       
       prev.forEach((val, i) => {
         if (i < totalSlots) {
@@ -101,6 +114,7 @@ export default function GridMakerPage() {
   }, [totalSlots, selectedSizeId]);
 
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
+  const [tuningSlotIdx, setTuningSlotIdx] = useState<number | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDistributionOpen, setIsDistributionOpen] = useState(false);
   const [targetSlotString, setTargetSlotString] = useState("");
@@ -147,7 +161,6 @@ export default function GridMakerPage() {
     return { widthCm: 3.5, heightCm: 4.5 };
   }, [customSizes]);
 
-  // Helper: Get indices of the same column (Vertical Synchronization)
   const getColumnIndices = useCallback((index: number) => {
     const colIndex = index % numCols;
     const indices = [];
@@ -174,8 +187,8 @@ export default function GridMakerPage() {
           
           colIndices.forEach(idx => {
             newSlots[idx] = { 
+              ...DEFAULT_SLOT_DATA(selectedSizeId),
               url: newData, 
-              sizeId: selectedSizeId 
             };
           });
           
@@ -219,8 +232,8 @@ export default function GridMakerPage() {
       const colIndices = getColumnIndices(targetIndex);
       colIndices.forEach(colIdx => {
         newSlots[colIdx] = { 
+          ...DEFAULT_SLOT_DATA(selectedSizeId),
           url: data, 
-          sizeId: selectedSizeId 
         };
       });
     });
@@ -235,9 +248,8 @@ export default function GridMakerPage() {
   const handleRemove = (index: number) => {
     const newSlots = [...slots];
     const colIndices = getColumnIndices(index);
-    // Vertical Removal Logic
     colIndices.forEach(idx => {
-      newSlots[idx] = { url: null, sizeId: newSlots[idx].sizeId };
+      newSlots[idx] = DEFAULT_SLOT_DATA(newSlots[idx].sizeId);
     });
     setSlots(newSlots);
     toast({ title: "Column Removed", description: "Column cleared to maintain symmetry." });
@@ -318,19 +330,16 @@ export default function GridMakerPage() {
       const slotWidth = Math.round(size.widthCm * CM_TO_PX);
       const slotHeight = Math.round(size.heightCm * CM_TO_PX);
 
-      // Calculate X based on previous column widths
       let x = offsetX;
       for (let c = 0; c < col; c++) {
         x += colWidths[c] + spacingPx;
       }
 
-      // Calculate Y based on previous row heights
       let y = offsetY;
       for (let r = 0; r < row; r++) {
         y += rowHeights[r] + spacingPx;
       }
 
-      // Skip if out of bounds
       if (x + slotWidth > canvasWidthPx || y + slotHeight > canvasHeightPx) return;
 
       if (img) {
@@ -339,9 +348,17 @@ export default function GridMakerPage() {
         ctx.rect(x, y, slotWidth, slotHeight);
         ctx.clip();
 
+        // Advanced HD Transformation
+        const centerX = x + slotWidth / 2;
+        const centerY = y + slotHeight / 2;
+        
+        ctx.translate(centerX, centerY);
+        ctx.rotate((slot.rotation * Math.PI) / 180);
+        ctx.scale(slot.scale, slot.scale);
+
         const imgAspect = img.width / img.height;
         const slotAspect = slotWidth / slotHeight;
-        let dW, dH, dX, dY;
+        let dW, dH;
 
         if (imgAspect > slotAspect) {
           dH = slotHeight; dW = dH * imgAspect;
@@ -349,16 +366,18 @@ export default function GridMakerPage() {
           dW = slotWidth; dH = dW / imgAspect;
         }
 
-        dX = Math.round(x + (slotWidth - dW) / 2);
-        dY = Math.round(y + (slotHeight - dH) / 2);
+        // Panning is relative to slot bounds
+        const panX = (slot.panX / 100) * slotWidth;
+        const panY = (slot.panY / 100) * slotHeight;
+
+        ctx.drawImage(img, -dW / 2 + panX, -dH / 2 + panY, dW, dH);
         
-        ctx.drawImage(img, dX, dY, dW, dH);
+        ctx.restore();
         
         // Professional 3px Black Stroke (Border-box)
         ctx.strokeStyle = "#000000";
         ctx.lineWidth = 3;
         ctx.strokeRect(x + 1.5, y + 1.5, slotWidth - 3, slotHeight - 3);
-        ctx.restore();
       }
     });
   }, [slots, canvasWidthPx, canvasHeightPx, numCols, numRows, spacingCm, getSizeFromId]);
@@ -400,6 +419,13 @@ export default function GridMakerPage() {
       title: "Spacing Reset",
       description: `Gaps restored to official ${DEFAULT_SPACING}cm standard.`,
     });
+  };
+
+  const updateSlotTuning = (updates: Partial<SlotData>) => {
+    if (tuningSlotIdx === null) return;
+    const newSlots = [...slots];
+    newSlots[tuningSlotIdx] = { ...newSlots[tuningSlotIdx], ...updates };
+    setSlots(newSlots);
   };
 
   return (
@@ -559,9 +585,6 @@ export default function GridMakerPage() {
                     onValueChange={(val) => setSpacingCm(val[0])}
                     className="py-2"
                   />
-                  <p className="text-[9px] text-muted-foreground italic">
-                    Adjust the space between photos and the outer margins.
-                  </p>
                 </div>
 
                 <div className="space-y-2 pt-4 border-t">
@@ -579,9 +602,6 @@ export default function GridMakerPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-[9px] text-muted-foreground italic">
-                    Note: Changing size applies to future uploads or the currently active column.
-                  </p>
                 </div>
 
                 <div className="space-y-3 pt-4 border-t">
@@ -592,34 +612,47 @@ export default function GridMakerPage() {
                   >
                     {slots.map((slot, i) => (
                       <div key={i} className="relative group">
-                        <button
-                          onClick={() => handleSlotClick(i)}
+                        <div
                           className={cn(
-                            "aspect-[35/45] w-full border-2 border-dashed rounded-lg flex flex-col items-center justify-center overflow-hidden transition-all bg-muted/10 hover:border-primary/50",
+                            "aspect-[35/45] w-full border-2 border-dashed rounded-lg flex flex-col items-center justify-center overflow-hidden transition-all bg-muted/10",
                             slot.url ? "border-solid border-primary bg-white shadow-sm" : "border-muted",
                             activeSlot === i && "ring-2 ring-primary ring-offset-2"
                           )}
+                          onClick={() => !slot.url && handleSlotClick(i)}
                         >
                           {slot.url ? (
-                            <div className="relative w-full h-full">
-                              <Image src={slot.url} alt={`S${i+1}`} fill className="object-cover" />
-                              <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-[7px] text-white px-1 text-center truncate">
-                                {getSizeFromId(slot.sizeId).widthCm}x{getSizeFromId(slot.sizeId).heightCm}
+                            <div className="relative w-full h-full group/image">
+                              <Image 
+                                src={slot.url} 
+                                alt={`S${i+1}`} 
+                                fill 
+                                className="object-cover" 
+                                style={{
+                                  transform: `rotate(${slot.rotation}deg) scale(${slot.scale}) translate(${slot.panX}%, ${slot.panY}%)`
+                                }}
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/image:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                <Button 
+                                  variant="secondary" 
+                                  size="icon" 
+                                  className="h-8 w-8 rounded-full"
+                                  onClick={(e) => { e.stopPropagation(); setTuningSlotIdx(i); }}
+                                >
+                                  <Settings className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  variant="destructive" 
+                                  size="icon" 
+                                  className="h-8 w-8 rounded-full"
+                                  onClick={(e) => { e.stopPropagation(); handleRemove(i); }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
                               </div>
                             </div>
                           ) : <Plus className="h-4 w-4 text-muted-foreground" />}
                           <span className="absolute top-1 right-1 text-[8px] font-black bg-black/60 text-white px-1 rounded-sm">{i + 1}</span>
-                        </button>
-                        {slot.url && (
-                          <Button 
-                            variant="destructive" 
-                            size="icon" 
-                            className="h-5 w-5 rounded-full absolute -top-1.5 -right-1.5 opacity-0 group-hover:opacity-100 shadow-lg transition-opacity" 
-                            onClick={(e) => { e.stopPropagation(); handleRemove(i); }}
-                          >
-                            <Trash2 className="h-2.5 w-2.5" />
-                          </Button>
-                        )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -660,23 +693,125 @@ export default function GridMakerPage() {
                   )}
                 </div>
               </div>
-              <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-8">
-                {[
-                  { label: "Print Format", val: `${canvasDim.width}x${canvasDim.height} in` },
-                  { label: "HD Output", val: "300 DPI" },
-                  { label: "Gap Width", val: `${spacingCm} cm` },
-                  { label: "Layout", val: "Custom Grid" }
-                ].map((spec, i) => (
-                  <div key={i} className="text-center group">
-                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest transition-colors group-hover:text-primary">{spec.label}</p>
-                    <p className="text-xs font-bold text-slate-900">{spec.val}</p>
-                  </div>
-                ))}
-              </div>
             </Card>
           </div>
         </div>
       </main>
+
+      <Dialog open={tuningSlotIdx !== null} onOpenChange={(open) => !open && setTuningSlotIdx(null)}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Maximize className="h-5 w-5 text-primary" /> HD Alignment Suite
+            </DialogTitle>
+            <DialogDescription>Precisely center and rotate your photo within the biometric frame.</DialogDescription>
+          </DialogHeader>
+          
+          {tuningSlotIdx !== null && slots[tuningSlotIdx] && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-4">
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
+                      <RotateCcw className="h-3 w-3" /> Rotation (deg)
+                    </Label>
+                    <span className="text-xs font-bold text-primary">{slots[tuningSlotIdx].rotation}°</span>
+                  </div>
+                  <Slider 
+                    value={[slots[tuningSlotIdx].rotation]} 
+                    min={-180} 
+                    max={180} 
+                    step={1} 
+                    onValueChange={(val) => updateSlotTuning({ rotation: val[0] })}
+                  />
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
+                      <ZoomIn className="h-3 w-3" /> Zoom Scale
+                    </Label>
+                    <span className="text-xs font-bold text-primary">{slots[tuningSlotIdx].scale.toFixed(2)}x</span>
+                  </div>
+                  <Slider 
+                    value={[slots[tuningSlotIdx].scale]} 
+                    min={0.5} 
+                    max={3} 
+                    step={0.01} 
+                    onValueChange={(val) => updateSlotTuning({ scale: val[0] })}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Pan X (%)</Label>
+                    <Input 
+                      type="number" 
+                      value={slots[tuningSlotIdx].panX} 
+                      onChange={(e) => updateSlotTuning({ panX: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Pan Y (%)</Label>
+                    <Input 
+                      type="number" 
+                      value={slots[tuningSlotIdx].panY} 
+                      onChange={(e) => updateSlotTuning({ panY: Number(e.target.value) })}
+                    />
+                  </div>
+                </div>
+
+                <Button 
+                  variant="outline" 
+                  className="w-full gap-2 text-xs font-bold"
+                  onClick={() => updateSlotTuning({ panX: 0, panY: 0, rotation: 0, scale: 1 })}
+                >
+                  <RotateCcw className="h-3 w-3" /> Reset Alignment
+                </Button>
+              </div>
+
+              <div className="flex flex-col items-center justify-center space-y-4">
+                <div 
+                  className="relative bg-white border-2 border-primary rounded-sm overflow-hidden shadow-inner cursor-move"
+                  style={{ 
+                    width: '200px', 
+                    height: `${200 * (getSizeFromId(slots[tuningSlotIdx].sizeId).heightCm / getSizeFromId(slots[tuningSlotIdx].sizeId).widthCm)}px`,
+                  }}
+                  onMouseMove={(e) => {
+                    if (e.buttons === 1) {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const dx = (e.movementX / rect.width) * 100;
+                      const dy = (e.movementY / rect.height) * 100;
+                      updateSlotTuning({ 
+                        panX: slots[tuningSlotIdx].panX + dx, 
+                        panY: slots[tuningSlotIdx].panY + dy 
+                      });
+                    }
+                  }}
+                >
+                  <Image 
+                    src={slots[tuningSlotIdx].url!} 
+                    alt="Tune" 
+                    fill 
+                    className="object-cover pointer-events-none" 
+                    style={{
+                      transform: `rotate(${slots[tuningSlotIdx].rotation}deg) scale(${slots[tuningSlotIdx].scale}) translate(${slots[tuningSlotIdx].panX}%, ${slots[tuningSlotIdx].panY}%)`
+                    }}
+                  />
+                  <div className="absolute inset-0 border-2 border-primary/20 pointer-events-none" />
+                </div>
+                <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                  <Move className="h-3 w-3" /> Drag photo to pan
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button onClick={() => setTuningSlotIdx(null)} className="w-full">Done Adjusting</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
