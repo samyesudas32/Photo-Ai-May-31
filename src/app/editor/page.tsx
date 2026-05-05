@@ -18,7 +18,8 @@ import {
   Plus,
   Pencil,
   Ruler,
-  GripVertical
+  GripVertical,
+  Square
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -202,6 +203,7 @@ export default function EditorPage() {
   const [selectedStyle, setSelectedStyle] = useState<CoatStyle>('none');
   const [selectedSizeId, setSelectedSizeId] = useState<string>('');
   const [selectedBgColor, setSelectedBgColor] = useState<string>('#FFFFFF');
+  const [hasStroke, setHasStroke] = useState(false);
   const [isAddSizeOpen, setIsAddSizeOpen] = useState(false);
   const [editingSizeId, setEditingSizeId] = useState<string | null>(null);
   
@@ -578,12 +580,17 @@ export default function EditorPage() {
                       <div className="absolute top-4 left-4 z-10 bg-secondary text-white text-[10px] font-bold px-2 py-0.5 rounded-sm shadow-sm">
                         PROCESSED
                       </div>
-                      <Image 
-                        src={processedUrl} 
-                        alt="Processed" 
-                        fill 
-                        className="object-contain p-2"
-                      />
+                      <div className={cn(
+                        "relative w-full h-full",
+                        hasStroke && "border-[3px] border-black"
+                      )}>
+                        <Image 
+                          src={processedUrl} 
+                          alt="Processed" 
+                          fill 
+                          className="object-contain p-2"
+                        />
+                      </div>
                     </div>
                   )}
                   
@@ -702,6 +709,22 @@ export default function EditorPage() {
                       </Button>
                     ))}
                   </div>
+                </div>
+
+                <div className="space-y-4 pt-4 border-t">
+                  <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Photo Styling</Label>
+                  <Button
+                    variant={hasStroke ? "default" : "outline"}
+                    className="w-full justify-start gap-2"
+                    onClick={() => setHasStroke(!hasStroke)}
+                    disabled={isProcessing}
+                  >
+                    <Square className={cn(
+                      "h-4 w-4",
+                      hasStroke ? "fill-current" : ""
+                    )} />
+                    {hasStroke ? "3px Black Stroke Applied" : "Add 3px Black Stroke"}
+                  </Button>
                 </div>
 
                 <div className="space-y-4 pt-4 border-t">
