@@ -60,6 +60,11 @@ interface CustomSize {
   heightCm: number;
 }
 
+interface SlotData {
+  url: string | null;
+  sizeId: string;
+}
+
 export default function GridMakerPage() {
   const { user } = useUser();
   const db = useFirestore();
@@ -72,19 +77,24 @@ export default function GridMakerPage() {
   const [selectedSizeId, setSelectedSizeId] = useState<string>('default-passport');
   
   const totalSlots = numCols * numRows;
-  const [slots, setSlots] = useState<(string | null)[]>([]);
+  const [slots, setSlots] = useState<SlotData[]>([]);
 
   // Initialize slots when grid dimensions change
   useEffect(() => {
     setSlots(prev => {
-      const newSlots = Array(totalSlots).fill(null);
-      // Try to preserve existing photos if possible
+      const newSlots: SlotData[] = Array(totalSlots).fill(null).map(() => ({ 
+        url: null, 
+        sizeId: selectedSizeId 
+      }));
+      
       prev.forEach((val, i) => {
-        if (i < totalSlots) newSlots[i] = val;
+        if (i < totalSlots) {
+          newSlots[i] = val;
+        }
       });
       return newSlots;
     });
-  }, [totalSlots]);
+  }, [totalSlots, selectedSizeId]);
 
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -121,18 +131,14 @@ export default function GridMakerPage() {
   const canvasWidthPx = useMemo(() => Math.round(canvasDim.width * DPI), [canvasDim.width]);
   const canvasHeightPx = useMemo(() => Math.round(canvasDim.height * DPI), [canvasDim.height]);
   
-  // Calculate Slot Dimensions based on Physical Photo Size
-  const currentPhotoSize = useMemo(() => {
-    const size = customSizes?.find(s => s.id === selectedSizeId);
+  const getSizeFromId = useCallback((sizeId: string) => {
+    const size = customSizes?.find(s => s.id === sizeId);
     if (size) return { widthCm: size.widthCm, heightCm: size.heightCm };
-    if (selectedSizeId === 'default-passport') return { widthCm: 3.5, heightCm: 4.5 };
-    if (selectedSizeId === 'default-stamp') return { widthCm: 2.0, heightCm: 2.5 };
-    if (selectedSizeId === 'default-pan') return { widthCm: 2.5, heightCm: 3.5 };
+    if (sizeId === 'default-passport') return { widthCm: 3.5, heightCm: 4.5 };
+    if (sizeId === 'default-stamp') return { widthCm: 2.0, heightCm: 2.5 };
+    if (sizeId === 'default-pan') return { widthCm: 2.5, heightCm: 3.5 };
     return { widthCm: 3.5, heightCm: 4.5 };
-  }, [customSizes, selectedSizeId]);
-
-  const slotWidth = useMemo(() => Math.round(currentPhotoSize.widthCm * CM_TO_PX), [currentPhotoSize]);
-  const slotHeight = useMemo(() => Math.round(currentPhotoSize.heightCm * CM_TO_PX), [currentPhotoSize]);
+  }, [customSizes]);
 
   // Helper: Get indices of the same column (Vertical Synchronization)
   const getColumnIndices = useCallback((index: number) => {
@@ -160,11 +166,14 @@ export default function GridMakerPage() {
           const colIndices = getColumnIndices(activeSlot);
           
           colIndices.forEach(idx => {
-            newSlots[idx] = newData;
+            newSlots[idx] = { 
+              url: newData, 
+              sizeId: selectedSizeId 
+            };
           });
           
           setSlots(newSlots);
-          toast({ title: "Column Updated", description: "Column synced vertically." });
+          toast({ title: "Column Updated", description: "Column synced with current target size." });
         };
         reader.readAsDataURL(file);
       }
@@ -202,7 +211,10 @@ export default function GridMakerPage() {
       const data = loadedFiles[idx]?.data || loadedFiles[0].data;
       const colIndices = getColumnIndices(targetIndex);
       colIndices.forEach(colIdx => {
-        newSlots[colIdx] = data;
+        newSlots[colIdx] = { 
+          url: data, 
+          sizeId: selectedSizeId 
+        };
       });
     });
 
@@ -210,13 +222,31 @@ export default function GridMakerPage() {
     setIsDistributionOpen(false);
     setTargetSlotString("");
     setBulkFiles([]);
-    toast({ title: "Bulk Distribution Complete", description: "Columns populated vertically." });
+    toast({ title: "Bulk Distribution Complete", description: "Columns populated with selected size." });
   };
 
   const handleRemove = (index: number) => {
     const newSlots = [...slots];
-    newSlots[index] = null; // Removed one-by-one as requested in previous step
+    const colIndices = getColumnIndices(index);
+    // Remove the entire column to maintain vertical removal logic
+    colIndices.forEach(idx => {
+      newSlots[idx] = { url: null, sizeId: newSlots[idx].sizeId };
+    });
     setSlots(newSlots);
+  };
+
+  const handleSizeChange = (newSizeId: string) => {
+    setSelectedSizeId(newSizeId);
+    // If we have an active slot, apply this size to its column immediately
+    if (activeSlot !== null) {
+      const newSlots = [...slots];
+      const colIndices = getColumnIndices(activeSlot);
+      colIndices.forEach(idx => {
+        newSlots[idx] = { ...newSlots[idx], sizeId: newSizeId };
+      });
+      setSlots(newSlots);
+      toast({ title: "Size Updated", description: "Selected column size updated." });
+    }
   };
 
   const saveCanvasSettings = () => {
@@ -242,57 +272,86 @@ export default function GridMakerPage() {
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, canvasWidthPx, canvasHeightPx);
 
-    const images = await Promise.all(slots.map(uri => {
-      if (!uri) return Promise.resolve(null);
+    const images = await Promise.all(slots.map(slot => {
+      if (!slot.url) return Promise.resolve(null);
       return new Promise<HTMLImageElement | null>(resolve => {
         const img = new window.Image();
         img.onload = () => resolve(img);
         img.onerror = () => resolve(null);
-        img.src = uri;
+        img.src = slot.url;
       });
     }));
 
-    // TOP-LEFT ALIGNMENT: 0.52cm margins
+    // Calculate Dynamic Column Widths and Row Heights
+    const colWidths = Array(numCols).fill(0);
+    const rowHeights = Array(numRows).fill(0);
+
+    slots.forEach((slot, i) => {
+      const col = i % numCols;
+      const row = Math.floor(i / numCols);
+      const size = getSizeFromId(slot.sizeId);
+      const wPx = Math.round(size.widthCm * CM_TO_PX);
+      const hPx = Math.round(size.heightCm * CM_TO_PX);
+      
+      if (wPx > colWidths[col]) colWidths[col] = wPx;
+      if (hPx > rowHeights[row]) rowHeights[row] = hPx;
+    });
+
     const offsetX = SPACING_PX; 
     const offsetY = SPACING_PX;
 
     images.forEach((img, i) => {
-      if (!img) return;
       const col = i % numCols;
       const row = Math.floor(i / numCols);
-      const x = Math.round(offsetX + col * (slotWidth + SPACING_PX));
-      const y = Math.round(offsetY + row * (slotHeight + SPACING_PX));
+      const slot = slots[i];
+      const size = getSizeFromId(slot.sizeId);
+      const slotWidth = Math.round(size.widthCm * CM_TO_PX);
+      const slotHeight = Math.round(size.heightCm * CM_TO_PX);
 
-      // Clip to canvas boundaries
-      if (x + slotWidth > canvasWidthPx || y + slotHeight > canvasHeightPx) return;
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(x, y, slotWidth, slotHeight);
-      ctx.clip();
-
-      const imgAspect = img.width / img.height;
-      const slotAspect = slotWidth / slotHeight;
-      let dW, dH, dX, dY;
-
-      if (imgAspect > slotAspect) {
-        dH = slotHeight; dW = dH * imgAspect;
-      } else {
-        dW = slotWidth; dH = dW / imgAspect;
+      // Calculate X based on previous column widths
+      let x = offsetX;
+      for (let c = 0; c < col; c++) {
+        x += colWidths[c] + SPACING_PX;
       }
 
-      dX = Math.round(x + (slotWidth - dW) / 2);
-      dY = Math.round(y + (slotHeight - dH) / 2);
-      
-      ctx.drawImage(img, dX, dY, dW, dH);
-      
-      // Professional 3px Black Stroke (Border-box)
-      ctx.strokeStyle = "#000000";
-      ctx.lineWidth = 3;
-      ctx.strokeRect(x + 1.5, y + 1.5, slotWidth - 3, slotHeight - 3);
-      ctx.restore();
+      // Calculate Y based on previous row heights
+      let y = offsetY;
+      for (let r = 0; r < row; r++) {
+        y += rowHeights[r] + SPACING_PX;
+      }
+
+      // Skip if out of bounds
+      if (x + slotWidth > canvasWidthPx || y + slotHeight > canvasHeightPx) return;
+
+      if (img) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x, y, slotWidth, slotHeight);
+        ctx.clip();
+
+        const imgAspect = img.width / img.height;
+        const slotAspect = slotWidth / slotHeight;
+        let dW, dH, dX, dY;
+
+        if (imgAspect > slotAspect) {
+          dH = slotHeight; dW = dH * imgAspect;
+        } else {
+          dW = slotWidth; dH = dW / imgAspect;
+        }
+
+        dX = Math.round(x + (slotWidth - dW) / 2);
+        dY = Math.round(y + (slotHeight - dH) / 2);
+        
+        ctx.drawImage(img, dX, dY, dW, dH);
+        
+        // Professional 3px Black Stroke (Border-box)
+        ctx.strokeStyle = "#000000";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x + 1.5, y + 1.5, slotWidth - 3, slotHeight - 3);
+        ctx.restore();
+      }
     });
-  }, [slots, canvasWidthPx, canvasHeightPx, slotWidth, slotHeight, numCols, numRows]);
+  }, [slots, canvasWidthPx, canvasHeightPx, numCols, numRows, getSizeFromId]);
 
   useEffect(() => {
     drawCanvas();
@@ -341,7 +400,7 @@ export default function GridMakerPage() {
               <Grid3X3 className="h-8 w-8" /> HD Grid Setup
             </h1>
             <p className="text-muted-foreground text-sm font-medium">
-              Sheet: {canvasDim.width}x{canvasDim.height}in • Photo: {currentPhotoSize.widthCm}x{currentPhotoSize.heightCm}cm • Gap: 0.52cm
+              Sheet: {canvasDim.width}x{canvasDim.height}in • High Precision 300 DPI Rendering
             </p>
           </div>
 
@@ -394,7 +453,7 @@ export default function GridMakerPage() {
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle>Targeted Slot Distribution</DialogTitle>
-                  <DialogDescription>Input slot numbers (e.g. 1, 3, 4). Columns sync automatically.</DialogDescription>
+                  <DialogDescription>Input slot numbers (e.g. 1, 3, 4). Columns sync size and photo.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
@@ -417,7 +476,7 @@ export default function GridMakerPage() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button onClick={handleProcessBulk} className="w-full h-12">Distribute and Update Columns</Button>
+                  <Button onClick={handleProcessBulk} className="w-full h-12">Process and Upload to Selected Slots</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -460,7 +519,7 @@ export default function GridMakerPage() {
 
                 <div className="space-y-2 pt-4 border-t">
                   <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Target Photo Size</Label>
-                  <Select value={selectedSizeId} onValueChange={setSelectedSizeId}>
+                  <Select value={selectedSizeId} onValueChange={handleSizeChange}>
                     <SelectTrigger className="w-full rounded-xl">
                       <SelectValue placeholder="Select photo size" />
                     </SelectTrigger>
@@ -473,6 +532,9 @@ export default function GridMakerPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-[9px] text-muted-foreground italic">
+                    Note: Changing size applies to future uploads or the currently active column.
+                  </p>
                 </div>
 
                 <div className="space-y-3 pt-4 border-t">
@@ -481,19 +543,27 @@ export default function GridMakerPage() {
                     className="grid gap-2"
                     style={{ gridTemplateColumns: `repeat(${numCols}, 1fr)` }}
                   >
-                    {slots.map((uri, i) => (
+                    {slots.map((slot, i) => (
                       <div key={i} className="relative group">
                         <button
                           onClick={() => handleSlotClick(i)}
                           className={cn(
-                            "aspect-[35/45] w-full border-2 border-dashed rounded-lg flex items-center justify-center overflow-hidden transition-all bg-muted/10 hover:border-primary/50",
-                            uri ? "border-solid border-primary bg-white shadow-sm" : "border-muted"
+                            "aspect-[35/45] w-full border-2 border-dashed rounded-lg flex flex-col items-center justify-center overflow-hidden transition-all bg-muted/10 hover:border-primary/50",
+                            slot.url ? "border-solid border-primary bg-white shadow-sm" : "border-muted",
+                            activeSlot === i && "ring-2 ring-primary ring-offset-2"
                           )}
                         >
-                          {uri ? <Image src={uri} alt={`S${i+1}`} fill className="object-cover" /> : <Plus className="h-4 w-4 text-muted-foreground" />}
+                          {slot.url ? (
+                            <div className="relative w-full h-full">
+                              <Image src={slot.url} alt={`S${i+1}`} fill className="object-cover" />
+                              <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-[7px] text-white px-1 text-center truncate">
+                                {getSizeFromId(slot.sizeId).widthCm}x{getSizeFromId(slot.sizeId).heightCm}
+                              </div>
+                            </div>
+                          ) : <Plus className="h-4 w-4 text-muted-foreground" />}
                           <span className="absolute top-1 right-1 text-[8px] font-black bg-black/60 text-white px-1 rounded-sm">{i + 1}</span>
                         </button>
-                        {uri && (
+                        {slot.url && (
                           <Button 
                             variant="destructive" 
                             size="icon" 
@@ -509,13 +579,13 @@ export default function GridMakerPage() {
                 </div>
 
                 <div className="pt-6 border-t space-y-3">
-                  <Button className="w-full h-12 font-bold bg-secondary hover:bg-secondary/90 shadow-md text-white" onClick={downloadPNG} disabled={!slots.some(s => s)}>
+                  <Button className="w-full h-12 font-bold bg-secondary hover:bg-secondary/90 shadow-md text-white" onClick={downloadPNG} disabled={!slots.some(s => s.url)}>
                     <Download className="mr-2 h-4 w-4" /> Download HD PNG
                   </Button>
-                  <Button className="w-full h-12 font-bold shadow-md" onClick={downloadJPG} disabled={!slots.some(s => s)}>
+                  <Button className="w-full h-12 font-bold shadow-md" onClick={downloadJPG} disabled={!slots.some(s => s.url)}>
                     <FileImage className="mr-2 h-4 w-4" /> Download HD JPG
                   </Button>
-                  <Button variant="outline" className="w-full h-12 font-bold border-2" onClick={downloadPDF} disabled={!slots.some(s => s)}>
+                  <Button variant="outline" className="w-full h-12 font-bold border-2" onClick={downloadPDF} disabled={!slots.some(s => s.url)}>
                     <FileText className="mr-2 h-5 w-5" /> Download HD PDF
                   </Button>
                 </div>
@@ -535,20 +605,20 @@ export default function GridMakerPage() {
                   }}
                 >
                   <canvas ref={canvasRef} width={canvasWidthPx} height={canvasHeightPx} className="absolute inset-0 w-full h-full" />
-                  {!slots.some(s => s) && (
+                  {!slots.some(s => s.url) && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300 pointer-events-none">
                       <Camera className="h-16 w-16 mb-4 opacity-20" />
-                      <p className="text-sm font-bold uppercase tracking-[0.2em] opacity-40">Ready for Alignment</p>
+                      <p className="text-sm font-bold uppercase tracking-[0.2em] opacity-40">HD Preview Ready</p>
                     </div>
                   )}
                 </div>
               </div>
               <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-8">
                 {[
-                  { label: "HD Sheet", val: `${canvasDim.width} x ${canvasDim.height} in` },
-                  { label: "Resolution", val: "300 DPI" },
-                  { label: "Photo Format", val: `${currentPhotoSize.widthCm} x ${currentPhotoSize.heightCm} cm` },
-                  { label: "Grid Symmetry", val: `${numCols}x${numRows}` }
+                  { label: "Print Format", val: `${canvasDim.width}x${canvasDim.height} in` },
+                  { label: "HD Output", val: "300 DPI" },
+                  { label: "Sync Engine", val: "Vertical (Column)" },
+                  { label: "Layout", val: "Mixed Photo Sizes" }
                 ].map((spec, i) => (
                   <div key={i} className="text-center group">
                     <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest transition-colors group-hover:text-primary">{spec.label}</p>
@@ -563,3 +633,4 @@ export default function GridMakerPage() {
     </div>
   );
 }
+
