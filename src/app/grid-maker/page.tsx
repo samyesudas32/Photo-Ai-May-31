@@ -12,7 +12,9 @@ import {
   Trash2,
   RefreshCw,
   Plus,
-  Link as LinkIcon
+  Link as LinkIcon,
+  ChevronUp,
+  ChevronDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -341,12 +343,11 @@ export default function GridMakerPage() {
           </div>
 
           <div className="lg:col-span-8 space-y-6">
-            <Card className="bg-slate-50 border-2 flex flex-col items-center justify-center min-h-[700px] relative shadow-inner p-4 md:p-12">
+            <Card className="bg-slate-100/50 border-none flex flex-col items-center justify-center min-h-[700px] relative p-4 md:p-12 overflow-hidden">
               <div className="w-full flex flex-col items-center">
                 <div className="relative">
-                  <div className="absolute -inset-8 bg-black/5 blur-3xl rounded-[3rem] -z-10"></div>
-                  
-                  <div className="relative bg-white p-4 shadow-2xl rounded-sm border ring-1 ring-black/10 overflow-hidden cursor-crosshair">
+                  {/* Clean White Canvas Preview - No Shadow or Border */}
+                  <div className="relative bg-white overflow-hidden cursor-crosshair">
                     <canvas 
                       ref={canvasRef} 
                       width={CANVAS_WIDTH} 
@@ -361,7 +362,8 @@ export default function GridMakerPage() {
                         width: '700px',
                         maxWidth: '100%',
                         aspectRatio: '6/4',
-                        display: 'grid'
+                        display: 'grid',
+                        padding: `${(WHITE_BORDER_PX / CANVAS_WIDTH) * 100}%`
                       }}
                     >
                       {slots.map((slot, i) => (
@@ -369,7 +371,7 @@ export default function GridMakerPage() {
                           key={slot.id}
                           className={cn(
                             "relative aspect-[3.5/4.5] group transition-all duration-300 bg-white",
-                            selectedSlotIndex === i ? "ring-4 ring-primary ring-offset-2 z-10" : "hover:ring-2 hover:ring-primary/40"
+                            selectedSlotIndex === i ? "ring-2 ring-primary z-10" : ""
                           )}
                           onClick={() => setSelectedSlotIndex(i)}
                         >
@@ -378,13 +380,13 @@ export default function GridMakerPage() {
                               <ImageWithCrop slot={slot} />
                             ) : (
                               <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50/50 text-slate-300 group-hover:text-primary/40 transition-colors">
-                                <Plus className="h-8 w-8 mb-1" />
+                                <Plus className="h-6 w-6 mb-1" />
                                 <span className="text-[8px] font-black uppercase tracking-widest">SLOT {i + 1}</span>
                               </div>
                             )}
                             
                             <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <div className="bg-primary text-white p-1 rounded-full shadow-lg">
+                              <div className="bg-primary text-white p-1 rounded-full">
                                 <LinkIcon className="h-2 w-2" />
                               </div>
                             </div>
