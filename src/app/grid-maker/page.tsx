@@ -81,7 +81,7 @@ import { CSS } from '@dnd-kit/utilities';
 // CONSTANTS - High Precision 300 DPI for Professional Printing
 const DPI = 300;
 const CM_TO_PX = DPI / 2.54;
-const DEFAULT_SPACING = 0.52; // Approximately 61px at 300 DPI (61/300 * 2.54)
+const DEFAULT_GAP_PX = 61; // Calibrated default for 300 DPI
 
 type Unit = 'cm' | 'mm' | 'in' | 'px';
 
@@ -110,8 +110,7 @@ function SortableSlot({
   onSlotClick, 
   onRemove, 
   onSizeChange, 
-  customSizes,
-  isProcessing 
+  customSizes 
 }: { 
   index: number;
   slot: SlotData;
@@ -120,7 +119,6 @@ function SortableSlot({
   onRemove: (index: number) => void;
   onSizeChange: (index: number, sizeId: string) => void;
   customSizes: CustomSize[] | null;
-  isProcessing: boolean;
 }) {
   const {
     attributes,
@@ -201,8 +199,8 @@ export default function GridMakerPage() {
   const [canvasDim, setCanvasDim] = useState({ width: 6, height: 4 }); // In inches
   const [numCols, setNumCols] = useState(4);
   const [numRows, setNumRows] = useState(2);
-  const [spacingWidthCm, setSpacingWidthCm] = useState(DEFAULT_SPACING);
-  const [spacingHeightCm, setSpacingHeightCm] = useState(DEFAULT_SPACING);
+  const [spacingWidthPx, setSpacingWidthPx] = useState(DEFAULT_GAP_PX);
+  const [spacingHeightPx, setSpacingHeightPx] = useState(DEFAULT_GAP_PX);
   const [selectedSizeId, setSelectedSizeId] = useState<string>('');
   
   const totalSlots = useMemo(() => numCols * numRows, [numCols, numRows]);
@@ -452,15 +450,15 @@ export default function GridMakerPage() {
 
   const resetGrid = () => {
     setSlots(prev => prev.map(s => ({ ...s, url: null })));
-    setSpacingWidthCm(DEFAULT_SPACING);
-    setSpacingHeightCm(DEFAULT_SPACING);
+    setSpacingWidthPx(DEFAULT_GAP_PX);
+    setSpacingHeightPx(DEFAULT_GAP_PX);
     toast({ title: "Grid Reset", description: "All settings reverted to HD defaults." });
   };
 
   const resetGap = () => {
-    setSpacingWidthCm(DEFAULT_SPACING);
-    setSpacingHeightCm(DEFAULT_SPACING);
-    toast({ title: "Gap Reset", description: "Spacing returned to 61px (0.52cm)." });
+    setSpacingWidthPx(DEFAULT_GAP_PX);
+    setSpacingHeightPx(DEFAULT_GAP_PX);
+    toast({ title: "Gap Reset", description: "Spacing returned to 61px baseline." });
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -563,9 +561,6 @@ export default function GridMakerPage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const spacingWidthPx = Math.round(spacingWidthCm * CM_TO_PX);
-    const spacingHeightPx = Math.round(spacingHeightCm * CM_TO_PX);
-    
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     ctx.clearRect(0, 0, canvasWidthPx, canvasHeightPx);
@@ -631,7 +626,7 @@ export default function GridMakerPage() {
         ctx.strokeRect(x, y, slotWidth, slotHeight);
       }
     });
-  }, [slots, canvasWidthPx, canvasHeightPx, numCols, numRows, getSizeFromId, spacingWidthCm, spacingHeightCm]);
+  }, [slots, canvasWidthPx, canvasHeightPx, numCols, numRows, getSizeFromId, spacingWidthPx, spacingHeightPx]);
 
   useEffect(() => { drawCanvas(); }, [drawCanvas]);
 
@@ -703,10 +698,7 @@ export default function GridMakerPage() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button onClick={() => {
-                    if (user && db) setDocumentNonBlocking(doc(db, 'users', user.uid), { preferredCanvasSize: canvasDim }, { merge: true });
-                    setIsSettingsOpen(false);
-                  }} className="w-full">Save Format</Button>
+                  <Button onClick={() => setIsSettingsOpen(false)} className="w-full">Save Format</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -781,13 +773,13 @@ export default function GridMakerPage() {
 
                 <div className="space-y-6 pt-4 border-t">
                   <div className="flex items-center justify-between">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground">Photo Gaps (cm)</Label>
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground">Photo Gaps (px)</Label>
                     <Button 
                       variant="ghost" 
                       size="icon" 
                       className="h-4 w-4 rounded-full text-muted-foreground hover:text-primary"
                       onClick={resetGap}
-                      title="Reset gaps to 61px (0.52cm)"
+                      title="Reset gaps to 61px baseline"
                     >
                       <RotateCcw className="h-3 w-3" />
                     </Button>
@@ -797,28 +789,28 @@ export default function GridMakerPage() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-[9px] font-bold uppercase text-muted-foreground">Gap Width</Label>
-                        <span className="text-[9px] font-bold text-primary">{spacingWidthCm}cm</span>
+                        <span className="text-[9px] font-bold text-primary">{spacingWidthPx}px</span>
                       </div>
                       <Slider 
-                        value={[spacingWidthCm]} 
+                        value={[spacingWidthPx]} 
                         min={0} 
-                        max={2} 
-                        step={0.01} 
-                        onValueChange={(val) => setSpacingWidthCm(val[0])}
+                        max={200} 
+                        step={1} 
+                        onValueChange={(val) => setSpacingWidthPx(val[0])}
                       />
                     </div>
 
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-[9px] font-bold uppercase text-muted-foreground">Gap Height</Label>
-                        <span className="text-[9px] font-bold text-primary">{spacingHeightCm}cm</span>
+                        <span className="text-[9px] font-bold text-primary">{spacingHeightPx}px</span>
                       </div>
                       <Slider 
-                        value={[spacingHeightCm]} 
+                        value={[spacingHeightPx]} 
                         min={0} 
-                        max={2} 
-                        step={0.01} 
-                        onValueChange={(val) => setSpacingHeightCm(val[0])}
+                        max={200} 
+                        step={1} 
+                        onValueChange={(val) => setSpacingHeightPx(val[0])}
                       />
                     </div>
                   </div>
@@ -880,9 +872,6 @@ export default function GridMakerPage() {
                                   value={newSize.height} 
                                   onChange={(e) => setNewSize({...newSize, height: Number(e.target.value)})} 
                                 />
-                              </div>
-                              <div className="col-span-2 text-[10px] text-muted-foreground italic text-center pt-1">
-                                Resulting Resolution: {Math.round(convertToCm(newSize.width, newSize.unit) * CM_TO_PX)} x {Math.round(convertToCm(newSize.height, newSize.unit) * CM_TO_PX)} pixels @ 300 DPI
                               </div>
                             </div>
                           </div>
@@ -950,7 +939,6 @@ export default function GridMakerPage() {
                             onRemove={handleRemove}
                             onSizeChange={handleSizeChange}
                             customSizes={customSizes}
-                            isProcessing={false}
                           />
                         ))}
                       </div>
