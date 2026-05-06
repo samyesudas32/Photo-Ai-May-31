@@ -13,11 +13,9 @@ import {
   Camera,
   FileImage,
   Layers,
-  Save,
   Ruler,
   LayoutGrid,
   Pencil,
-  CheckCircle2,
   Loader2,
   RefreshCw,
   RotateCcw
@@ -50,8 +48,6 @@ import {
   useDoc, 
   useMemoFirebase, 
   setDocumentNonBlocking,
-  updateDocumentNonBlocking,
-  deleteDocumentNonBlocking,
   useCollection
 } from "@/firebase";
 import { doc, collection, query, orderBy, setDoc, getDoc } from "firebase/firestore";
@@ -122,13 +118,14 @@ export default function GridMakerPage() {
   const bulkInputRef = useRef<HTMLInputElement>(null);
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
 
-  // Initialize slots when grid dimensions change
+  // Initialize/Update slots when grid dimensions or global size change
   useEffect(() => {
     setSlots(prev => {
       const newSlots: SlotData[] = Array(totalSlots).fill(null).map(() => DEFAULT_SLOT_DATA(selectedSizeId));
       prev.forEach((val, i) => {
         if (i < totalSlots) {
-          newSlots[i] = val;
+          // Keep existing photo URL but update to the current selected size for consistency
+          newSlots[i] = { ...val, sizeId: selectedSizeId };
         }
       });
       return newSlots;
@@ -249,7 +246,7 @@ export default function GridMakerPage() {
             url: newData, 
           };
           setSlots(newSlots);
-          toast({ title: "Photo Added", description: "Original quality maintained." });
+          toast({ title: "Photo Added", description: "HD Original Quality maintained." });
         };
         reader.readAsDataURL(file);
       }
@@ -272,7 +269,6 @@ export default function GridMakerPage() {
     let targetIndices: number[] = [];
 
     if (!targetSlotString.trim()) {
-      // Default behavior: Fill all slots up to the number of files available, or all slots if more files
       const count = Math.min(totalSlots, bulkFiles.length || totalSlots);
       targetIndices = Array.from({ length: count }, (_, i) => i);
     } else {
@@ -298,8 +294,6 @@ export default function GridMakerPage() {
           }
         }
       });
-
-      // Filter duplicates and valid ranges
       targetIndices = Array.from(new Set(rawIndices)).filter(n => n >= 0 && n < totalSlots);
     }
 
@@ -308,7 +302,6 @@ export default function GridMakerPage() {
       return;
     }
 
-    // Load all files as data URIs
     const loadedFiles = await Promise.all(bulkFiles.map(file => {
       return new Promise<string>(resolve => {
         const reader = new FileReader();
@@ -320,7 +313,6 @@ export default function GridMakerPage() {
     setSlots(prev => {
       const newSlots = [...prev];
       targetIndices.forEach((targetIndex, idx) => {
-        // Use modulo to cycle through files if more indices than files
         const fileData = loadedFiles[idx % loadedFiles.length];
         newSlots[targetIndex] = { 
           ...newSlots[targetIndex],
@@ -333,7 +325,7 @@ export default function GridMakerPage() {
     setIsDistributionOpen(false);
     setTargetSlotString("");
     setBulkFiles([]);
-    toast({ title: "Bulk Upload Complete", description: `Updated ${targetIndices.length} slots.` });
+    toast({ title: "Bulk Upload Complete", description: `Updated ${targetIndices.length} slots with HD quality.` });
   };
 
   const handleRemove = (index: number) => {
@@ -346,14 +338,12 @@ export default function GridMakerPage() {
   const resetGrid = () => {
     setSlots(Array(totalSlots).fill(null).map(() => DEFAULT_SLOT_DATA(selectedSizeId)));
     setSpacingCm(DEFAULT_SPACING);
-    setNumCols(4);
-    setNumRows(2);
-    toast({ title: "Grid Reset", description: "All slots and settings returned to default." });
+    toast({ title: "Grid Reset", description: "Slots and spacing returned to defaults." });
   };
 
   const resetGap = () => {
     setSpacingCm(DEFAULT_SPACING);
-    toast({ title: "Gap Reset", description: "Spacing returned to default 0.3cm." });
+    toast({ title: "Gap Reset", description: "Spacing returned to 0.3cm." });
   };
 
   const convertToCm = (val: number, fromUnit: Unit): number => {
@@ -393,6 +383,17 @@ export default function GridMakerPage() {
 
     const widthInCm = convertToCm(newSize.width, newSize.unit);
     const heightInCm = convertToCm(newSize.height, newSize.unit);
+
+    const userRef = doc(db, 'users', user.uid);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) {
+      await setDoc(userRef, {
+        id: user.uid,
+        email: user.email || 'anonymous@pixelpass.ai',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    }
 
     const sizeId = editingSizeId || doc(collection(db, 'users', user.uid, 'custom_passport_sizes')).id;
     const existingSize = customSizes?.find(s => s.id === editingSizeId);
@@ -468,7 +469,7 @@ export default function GridMakerPage() {
       if (hPx > rowHeights[row]) rowHeights[row] = hPx;
     });
 
-    // Start from top-left with a margin equal to the gap
+    // START FROM TOP-LEFT TO MAXIMIZE SPACE EFFICIENCY
     const offsetX = spacingPx; 
     const offsetY = spacingPx;
 
@@ -526,7 +527,7 @@ export default function GridMakerPage() {
     if (!canvasRef.current) return;
     const link = document.createElement("a");
     link.download = `pixelpass-hd.jpg`;
-    link.href = canvasRef.current.toDataURL("image/jpeg", 1.0);
+    link.href = canvasRef.current.toDataURL("image/jpeg", 1.0); // 1.0 FOR MAXIMUM QUALITY
     link.click();
   };
 
@@ -604,13 +605,13 @@ export default function GridMakerPage() {
             <Dialog open={isDistributionOpen} onOpenChange={setIsDistributionOpen}>
               <DialogTrigger asChild>
                 <Button className="rounded-full font-bold shadow-lg">
-                  <Layers className="mr-2 h-4 w-4" /> Bulk Upload
+                  <Layers className="mr-2 h-4 w-4" /> Targeted Bulk Upload
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Targeted Bulk Upload</DialogTitle>
-                  <DialogDescription>Input slot numbers (e.g. 1, 3-5, 8) to assign photos.</DialogDescription>
+                  <DialogTitle>Advanced Bulk Distribution</DialogTitle>
+                  <DialogDescription>Assign photos to specific slots with HD resolution.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
@@ -625,7 +626,7 @@ export default function GridMakerPage() {
                           bulkInputRef.current?.click();
                         }}
                       >
-                        (1, 2, 5, 6) Upload
+                        (1, 2, 5, 6) Pattern
                       </Button>
                     </div>
                     <Input placeholder="e.g., 1, 3-5, 8" value={targetSlotString} onChange={(e) => setTargetSlotString(e.target.value)} />
@@ -636,7 +637,7 @@ export default function GridMakerPage() {
                   >
                     <Plus className="h-8 w-8 text-muted-foreground" />
                     <p className="text-xs font-medium">
-                      {bulkFiles.length > 0 ? `${bulkFiles.length} photos selected` : "Select Photos"}
+                      {bulkFiles.length > 0 ? `${bulkFiles.length} photos ready` : "Select HD Photos"}
                     </p>
                     <input type="file" multiple ref={bulkInputRef} className="hidden" onChange={handleBulkFileChange} accept="image/*" />
                   </div>
@@ -725,16 +726,16 @@ export default function GridMakerPage() {
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-md">
                           <DialogHeader>
-                            <DialogTitle>{editingSizeId ? 'Edit' : 'Add'} Size</DialogTitle>
-                            <DialogDescription>Define your resolution and target units.</DialogDescription>
+                            <DialogTitle>{editingSizeId ? 'Edit' : 'Add'} HD Resolution</DialogTitle>
+                            <DialogDescription>Define precision dimensions in multiple units.</DialogDescription>
                           </DialogHeader>
                           <div className="space-y-4 py-4">
                             <div className="space-y-2">
                               <Label>Name</Label>
-                              <Input placeholder="e.g., My Visa Size" value={newSize.name} onChange={(e) => setNewSize({...newSize, name: e.target.value})} />
+                              <Input placeholder="e.g., My Passport" value={newSize.name} onChange={(e) => setNewSize({...newSize, name: e.target.value})} />
                             </div>
                             <div className="space-y-3">
-                              <Label>Dimensions & Resolution</Label>
+                              <Label>Unit Selection & Scale</Label>
                               <Tabs value={newSize.unit} onValueChange={(v) => handleUnitChange(v as Unit)}>
                                 <TabsList className="grid w-full grid-cols-4">
                                   <TabsTrigger value="mm">MM</TabsTrigger>
@@ -765,7 +766,7 @@ export default function GridMakerPage() {
                               </div>
                             </div>
                             <div className="space-y-2">
-                              <Label>Description (Optional)</Label>
+                              <Label>Description</Label>
                               <Textarea 
                                 placeholder="Describe the purpose of this size..." 
                                 value={newSize.description} 
@@ -775,7 +776,7 @@ export default function GridMakerPage() {
                           </div>
                           <DialogFooter>
                             <Button variant="outline" onClick={() => setIsAddSizeOpen(false)}>Cancel</Button>
-                            <Button onClick={handleSaveCustomSize}>Save Dimensions</Button>
+                            <Button onClick={handleSaveCustomSize}>Save Resolution</Button>
                           </DialogFooter>
                         </DialogContent>
                       </Dialog>
@@ -785,7 +786,7 @@ export default function GridMakerPage() {
                   <div className="flex gap-2">
                     <Select value={selectedSizeId} onValueChange={setSelectedSizeId}>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select size" />
+                        <SelectValue placeholder="Select target size" />
                       </SelectTrigger>
                       <SelectContent>
                         {customSizes?.map(size => (
@@ -833,7 +834,7 @@ export default function GridMakerPage() {
                     <Download className="mr-2 h-4 w-4" /> Export HD PNG
                   </Button>
                   <Button className="w-full h-12 font-bold shadow-md" onClick={downloadJPG} disabled={!slots.some(s => s.url)}>
-                    <FileImage className="mr-2 h-4 w-4" /> Export HD JPG
+                    <FileImage className="mr-2 h-4 w-4" /> Export HD JPG (100%)
                   </Button>
                   <Button variant="outline" className="w-full h-12 font-bold" onClick={downloadPDF} disabled={!slots.some(s => s.url)}>
                     <FileText className="mr-2 h-5 w-5" /> Export HD PDF
