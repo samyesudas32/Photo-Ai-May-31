@@ -193,7 +193,7 @@ function SortableSlot({
 }
 
 export default function GridMakerPage() {
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
@@ -239,10 +239,10 @@ export default function GridMakerPage() {
 
   // Auth & Profile Initialization
   useEffect(() => {
-    if (!user && auth) {
+    if (!user && !isUserLoading && auth) {
       initiateAnonymousSignIn(auth);
     }
-  }, [user, auth]);
+  }, [user, isUserLoading, auth]);
 
   const userProfileRef = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
@@ -252,7 +252,7 @@ export default function GridMakerPage() {
   const { data: profile } = useDoc<any>(userProfileRef);
 
   useEffect(() => {
-    if (user && db && !profile) {
+    if (user && db && !profile && !isUserLoading) {
       setDocumentNonBlocking(doc(db, 'users', user.uid), {
         id: user.uid,
         email: user.email || 'anonymous@pixelpass.ai',
@@ -260,7 +260,7 @@ export default function GridMakerPage() {
         updatedAt: new Date().toISOString()
       }, { merge: true });
     }
-  }, [user, db, profile]);
+  }, [user, db, profile, isUserLoading]);
 
   const customSizesQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
@@ -271,7 +271,7 @@ export default function GridMakerPage() {
 
   // Seed default sizes
   useEffect(() => {
-    if (user && db && customSizes && customSizes.length === 0 && !isSizesLoading) {
+    if (user && db && customSizes && customSizes.length === 0 && !isSizesLoading && !isUserLoading) {
       const defaultSizes = [
         {
           id: 'default-passport',
@@ -312,7 +312,7 @@ export default function GridMakerPage() {
         );
       });
     }
-  }, [user, db, customSizes, isSizesLoading]);
+  }, [user, db, customSizes, isSizesLoading, isUserLoading]);
 
   useEffect(() => {
     if (customSizes && customSizes.length > 0 && !selectedSizeId) {
@@ -517,14 +517,24 @@ export default function GridMakerPage() {
   };
 
   const handleSaveCustomSize = () => {
-    if (!user || !db) return;
-    if (!newSize.name || !newSize.width || !newSize.height) {
-      toast({ variant: "destructive", title: "Missing Data" });
+    if (!user || !db) {
+      toast({ variant: "destructive", title: "Authentication Required", description: "Waiting for secure connection..." });
+      return;
+    }
+    
+    if (!newSize.name || !newSize.width || !newSize.height || newSize.width <= 0 || newSize.height <= 0) {
+      toast({ variant: "destructive", title: "Invalid Input", description: "Please provide a valid name and positive dimensions." });
       return;
     }
 
     const widthInCm = convertToCm(newSize.width, newSize.unit);
     const heightInCm = convertToCm(newSize.height, newSize.unit);
+
+    if (isNaN(widthInCm) || isNaN(heightInCm)) {
+      toast({ variant: "destructive", title: "Dimension Error", description: "The provided dimensions are invalid." });
+      return;
+    }
+
     const sizeId = editingSizeId || doc(collection(db, 'users', user.uid, 'custom_passport_sizes')).id;
     const existingSize = customSizes?.find(s => s.id === editingSizeId);
     
@@ -541,10 +551,11 @@ export default function GridMakerPage() {
     };
 
     setDocumentNonBlocking(doc(db, 'users', user.uid, 'custom_passport_sizes', sizeId), sizeData, { merge: true });
+    
     setIsAddSizeOpen(false);
     setEditingSizeId(null);
     setNewSize({ name: '', description: '', width: 35, height: 45, unit: 'mm' });
-    toast({ title: editingSizeId ? "Size Updated" : "Size Saved" });
+    toast({ title: editingSizeId ? "Size Updated" : "Size Saved", description: "Resolution profile is now active." });
   };
 
   const handleEditSize = (size: CustomSize) => {
