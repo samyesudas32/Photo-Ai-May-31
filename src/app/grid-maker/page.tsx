@@ -56,7 +56,7 @@ import {
   useAuth,
   deleteDocumentNonBlocking
 } from "@/firebase";
-import { doc, collection, query, orderBy } from "firebase/firestore";
+import { doc, collection, query, orderBy, updateDoc } from "firebase/firestore";
 import { Select, SelectContent, SelectItem, SelectValue, SelectTrigger } from "@/components/ui/select";
 import { initiateAnonymousSignIn } from "@/firebase/non-blocking-login";
 
@@ -111,7 +111,8 @@ function SortableSlot({
   onSlotClick, 
   onRemove, 
   onSizeChange, 
-  customSizes 
+  customSizes,
+  numCols
 }: { 
   index: number;
   slot: SlotData;
@@ -120,6 +121,7 @@ function SortableSlot({
   onRemove: (index: number) => void;
   onSizeChange: (index: number, sizeId: string) => void;
   customSizes: CustomSize[] | null;
+  numCols: number;
 }) {
   const {
     attributes,
@@ -415,7 +417,9 @@ export default function GridMakerPage() {
     setSlots(prev => {
       const newSlots = [...prev];
       targetIndices.forEach((targetIndex, idx) => {
-        newSlots[targetIndex] = { ...newSlots[targetIndex], url: loadedFiles[idx % loadedFiles.length] };
+        if (targetIndex >= 0 && targetIndex < newSlots.length) {
+          newSlots[targetIndex] = { ...newSlots[targetIndex], url: loadedFiles[idx % loadedFiles.length] };
+        }
       });
       return newSlots;
     });
@@ -938,6 +942,45 @@ export default function GridMakerPage() {
                 </div>
               </CardContent>
             </Card>
+
+            <Card className="shadow-xl border-none">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <MousePointer2 className="h-4 w-4" /> Interactive Grid Layout
+                </CardTitle>
+                <CardDescription className="text-[10px] font-medium">
+                  Drag to reorder photos on the HD canvas. Each slot can have a custom resolution.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext 
+                    items={slots.map(s => s.id)}
+                    strategy={rectSortingStrategy}
+                  >
+                    <div className="grid grid-cols-2 gap-4">
+                      {slots.map((slot, i) => (
+                        <SortableSlot 
+                          key={slot.id}
+                          index={i}
+                          slot={slot}
+                          activeSlot={activeSlot}
+                          onSlotClick={handleSlotClick}
+                          onRemove={handleRemove}
+                          onSizeChange={handleSizeChange}
+                          customSizes={customSizes}
+                          numCols={numCols}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="lg:col-span-8 space-y-6">
@@ -958,44 +1001,6 @@ export default function GridMakerPage() {
                   )}
                 </div>
               </div>
-            </Card>
-
-            <Card className="shadow-xl border-none">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                  <MousePointer2 className="h-4 w-4" /> Interactive Grid Layout - Drag to Reorder
-                </CardTitle>
-                <CardDescription className="text-[10px] font-medium">
-                  Each slot can have a custom resolution. Drag photos to change their print sequence on the HD canvas.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
-                >
-                  <SortableContext 
-                    items={slots.map(s => s.id)}
-                    strategy={rectSortingStrategy}
-                  >
-                    <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${numCols}, 1fr)` }}>
-                      {slots.map((slot, i) => (
-                        <SortableSlot 
-                          key={slot.id}
-                          index={i}
-                          slot={slot}
-                          activeSlot={activeSlot}
-                          onSlotClick={handleSlotClick}
-                          onRemove={handleRemove}
-                          onSizeChange={handleSizeChange}
-                          customSizes={customSizes}
-                        />
-                      ))}
-                    </div>
-                  </SortableContext>
-                </DndContext>
-              </CardContent>
             </Card>
           </div>
         </div>
