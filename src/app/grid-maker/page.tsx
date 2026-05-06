@@ -81,7 +81,7 @@ import { CSS } from '@dnd-kit/utilities';
 // CONSTANTS - High Precision 300 DPI for Professional Printing
 const DPI = 300;
 const CM_TO_PX = DPI / 2.54;
-const DEFAULT_SPACING = 0.3;
+const DEFAULT_SPACING = 0.52; // Approximately 61px at 300 DPI (61/300 * 2.54)
 
 type Unit = 'cm' | 'mm' | 'in' | 'px';
 
@@ -454,13 +454,13 @@ export default function GridMakerPage() {
     setSlots(prev => prev.map(s => ({ ...s, url: null })));
     setSpacingWidthCm(DEFAULT_SPACING);
     setSpacingHeightCm(DEFAULT_SPACING);
-    toast({ title: "Grid Reset" });
+    toast({ title: "Grid Reset", description: "All settings reverted to HD defaults." });
   };
 
   const resetGap = () => {
     setSpacingWidthCm(DEFAULT_SPACING);
     setSpacingHeightCm(DEFAULT_SPACING);
-    toast({ title: "Gap Reset" });
+    toast({ title: "Gap Reset", description: "Spacing returned to 61px (0.52cm)." });
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -787,7 +787,7 @@ export default function GridMakerPage() {
                       size="icon" 
                       className="h-4 w-4 rounded-full text-muted-foreground hover:text-primary"
                       onClick={resetGap}
-                      title="Reset gaps to 0.3cm"
+                      title="Reset gaps to 61px (0.52cm)"
                     >
                       <RotateCcw className="h-3 w-3" />
                     </Button>
@@ -803,7 +803,7 @@ export default function GridMakerPage() {
                         value={[spacingWidthCm]} 
                         min={0} 
                         max={2} 
-                        step={0.1} 
+                        step={0.01} 
                         onValueChange={(val) => setSpacingWidthCm(val[0])}
                       />
                     </div>
@@ -817,7 +817,7 @@ export default function GridMakerPage() {
                         value={[spacingHeightCm]} 
                         min={0} 
                         max={2} 
-                        step={0.1} 
+                        step={0.01} 
                         onValueChange={(val) => setSpacingHeightCm(val[0])}
                       />
                     </div>
