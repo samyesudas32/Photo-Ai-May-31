@@ -942,45 +942,6 @@ export default function GridMakerPage() {
                 </div>
               </CardContent>
             </Card>
-
-            <Card className="shadow-xl border-none">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                  <MousePointer2 className="h-4 w-4" /> Interactive Grid Layout
-                </CardTitle>
-                <CardDescription className="text-[10px] font-medium">
-                  Drag to reorder photos on the HD canvas. Each slot can have a custom resolution.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
-                >
-                  <SortableContext 
-                    items={slots.map(s => s.id)}
-                    strategy={rectSortingStrategy}
-                  >
-                    <div className="grid grid-cols-2 gap-4">
-                      {slots.map((slot, i) => (
-                        <SortableSlot 
-                          key={slot.id}
-                          index={i}
-                          slot={slot}
-                          activeSlot={activeSlot}
-                          onSlotClick={handleSlotClick}
-                          onRemove={handleRemove}
-                          onSizeChange={handleSizeChange}
-                          customSizes={customSizes}
-                          numCols={numCols}
-                        />
-                      ))}
-                    </div>
-                  </SortableContext>
-                </DndContext>
-              </CardContent>
-            </Card>
           </div>
 
           <div className="lg:col-span-8 space-y-6">
@@ -1001,6 +962,45 @@ export default function GridMakerPage() {
                   )}
                 </div>
               </div>
+            </Card>
+
+            <Card className="shadow-xl border-none">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <MousePointer2 className="h-4 w-4" /> Interactive Grid Layout
+                </CardTitle>
+                <CardDescription className="text-[10px] font-medium">
+                  Drag to reorder photos on the HD canvas. Each slot can have a custom resolution.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext 
+                    items={slots.map(s => s.id)}
+                    strategy={rectSortingStrategy}
+                  >
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                      {slots.map((slot, i) => (
+                        <SortableSlot 
+                          key={slot.id}
+                          index={i}
+                          slot={slot}
+                          activeSlot={activeSlot}
+                          onSlotClick={handleSlotClick}
+                          onRemove={handleRemove}
+                          onSizeChange={handleSizeChange}
+                          customSizes={customSizes}
+                          numCols={numCols}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              </CardContent>
             </Card>
           </div>
         </div>
