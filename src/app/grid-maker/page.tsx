@@ -187,7 +187,6 @@ export default function GridMakerPage() {
           }
         ];
 
-        // Ensure Profile document exists first to avoid permission errors on sub-collections
         const userRef = doc(db, 'users', user.uid);
         const userSnap = await getDoc(userRef);
         if (!userSnap.exists()) {
@@ -223,7 +222,6 @@ export default function GridMakerPage() {
     }
   }, [customSizes, selectedSizeId]);
 
-  // Pixel Dimensions
   const canvasWidthPx = useMemo(() => Math.round(canvasDim.width * DPI), [canvasDim.width]);
   const canvasHeightPx = useMemo(() => Math.round(canvasDim.height * DPI), [canvasDim.height]);
   
@@ -266,38 +264,76 @@ export default function GridMakerPage() {
   };
 
   const handleProcessBulk = async () => {
-    const targetIndices = targetSlotString
-      .split(',')
-      .map(s => parseInt(s.trim()) - 1)
-      .filter(n => !isNaN(n) && n >= 0 && n < totalSlots);
-
-    if (targetIndices.length === 0 || bulkFiles.length === 0) {
-      toast({ variant: "destructive", title: "Error", description: "Invalid inputs." });
+    if (bulkFiles.length === 0) {
+      toast({ variant: "destructive", title: "Error", description: "Please select at least one photo." });
       return;
     }
 
-    const newSlots = [...slots];
+    let targetIndices: number[] = [];
+
+    if (!targetSlotString.trim()) {
+      // Default behavior: Fill all slots up to the number of files available, or all slots if more files
+      const count = Math.min(totalSlots, bulkFiles.length || totalSlots);
+      targetIndices = Array.from({ length: count }, (_, i) => i);
+    } else {
+      const rawIndices: number[] = [];
+      const parts = targetSlotString.split(',');
+      
+      parts.forEach(part => {
+        const range = part.trim().split('-');
+        if (range.length === 2) {
+          const start = parseInt(range[0]);
+          const end = parseInt(range[1]);
+          if (!isNaN(start) && !isNaN(end)) {
+            const min = Math.min(start, end);
+            const max = Math.max(start, end);
+            for (let i = min; i <= max; i++) {
+              rawIndices.push(i - 1);
+            }
+          }
+        } else {
+          const num = parseInt(part.trim());
+          if (!isNaN(num)) {
+            rawIndices.push(num - 1);
+          }
+        }
+      });
+
+      // Filter duplicates and valid ranges
+      targetIndices = Array.from(new Set(rawIndices)).filter(n => n >= 0 && n < totalSlots);
+    }
+
+    if (targetIndices.length === 0) {
+      toast({ variant: "destructive", title: "Invalid Input", description: "No valid slot numbers detected." });
+      return;
+    }
+
+    // Load all files as data URIs
     const loadedFiles = await Promise.all(bulkFiles.map(file => {
-      return new Promise<{data: string}>(resolve => {
+      return new Promise<string>(resolve => {
         const reader = new FileReader();
-        reader.onload = () => resolve({ data: reader.result as string });
+        reader.onload = () => resolve(reader.result as string);
         reader.readAsDataURL(file);
       });
     }));
 
-    targetIndices.forEach((targetIndex, idx) => {
-      const data = loadedFiles[idx]?.data || loadedFiles[0].data;
-      newSlots[targetIndex] = { 
-        ...newSlots[targetIndex],
-        url: data, 
-      };
+    setSlots(prev => {
+      const newSlots = [...prev];
+      targetIndices.forEach((targetIndex, idx) => {
+        // Use modulo to cycle through files if more indices than files
+        const fileData = loadedFiles[idx % loadedFiles.length];
+        newSlots[targetIndex] = { 
+          ...newSlots[targetIndex],
+          url: fileData, 
+        };
+      });
+      return newSlots;
     });
 
-    setSlots(newSlots);
     setIsDistributionOpen(false);
     setTargetSlotString("");
     setBulkFiles([]);
-    toast({ title: "Bulk Upload Complete" });
+    toast({ title: "Bulk Upload Complete", description: `Updated ${targetIndices.length} slots.` });
   };
 
   const handleRemove = (index: number) => {
@@ -490,7 +526,7 @@ export default function GridMakerPage() {
     if (!canvasRef.current) return;
     const link = document.createElement("a");
     link.download = `pixelpass-hd.jpg`;
-    link.href = canvasRef.current.toDataURL("image/jpeg", 1.0); // Maximum quality
+    link.href = canvasRef.current.toDataURL("image/jpeg", 1.0);
     link.click();
   };
 
@@ -574,12 +610,12 @@ export default function GridMakerPage() {
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle>Targeted Bulk Upload</DialogTitle>
-                  <DialogDescription>Input slot numbers (e.g. 1, 3, 4) to assign photos.</DialogDescription>
+                  <DialogDescription>Input slot numbers (e.g. 1, 3-5, 8) to assign photos.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
                     <Label>Target Slots (1-{totalSlots}):</Label>
-                    <Input placeholder="e.g., 2, 5, 8" value={targetSlotString} onChange={(e) => setTargetSlotString(e.target.value)} />
+                    <Input placeholder="e.g., 1, 3-5, 8" value={targetSlotString} onChange={(e) => setTargetSlotString(e.target.value)} />
                   </div>
                   <div 
                     className="border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-accent/50 transition-colors"
