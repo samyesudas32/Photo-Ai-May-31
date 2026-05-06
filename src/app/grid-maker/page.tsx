@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
@@ -79,10 +78,9 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-// CONSTANTS - High Precision 300 DPI for Professional Printing
-const DPI = 300;
-const CM_TO_PX = DPI / 2.54;
-const DEFAULT_GAP_PX = 61; // Calibrated default for 300 DPI (approx 0.52cm)
+// CONSTANTS - High Precision Baseline
+const DEFAULT_DPI = 300;
+const DEFAULT_GAP_PX = 61; // approx 0.52cm at 300 DPI
 
 type Unit = 'cm' | 'mm' | 'in' | 'px';
 
@@ -199,6 +197,7 @@ export default function GridMakerPage() {
   const { toast } = useToast();
 
   // Canvas & Grid State
+  const [dpi, setDpi] = useState(DEFAULT_DPI);
   const [canvasDim, setCanvasDim] = useState({ width: 6, height: 4 }); // In inches
   const [numCols, setNumCols] = useState(4);
   const [numRows, setNumRows] = useState(2);
@@ -224,7 +223,8 @@ export default function GridMakerPage() {
     description: '',
     width: 35,
     height: 45,
-    unit: 'mm' as Unit
+    unit: 'mm' as Unit,
+    dpi: 300
   });
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -340,8 +340,9 @@ export default function GridMakerPage() {
     });
   }, [totalSlots, selectedSizeId, customSizes]);
 
-  const canvasWidthPx = useMemo(() => Math.round(canvasDim.width * DPI), [canvasDim.width]);
-  const canvasHeightPx = useMemo(() => Math.round(canvasDim.height * DPI), [canvasDim.height]);
+  const cmToPx = useMemo(() => dpi / 2.54, [dpi]);
+  const canvasWidthPx = useMemo(() => Math.round(canvasDim.width * dpi), [canvasDim.width, dpi]);
+  const canvasHeightPx = useMemo(() => Math.round(canvasDim.height * dpi), [canvasDim.height, dpi]);
   
   const getSizeFromId = useCallback((sizeId: string) => {
     const size = customSizes?.find(s => s.id === sizeId);
@@ -463,6 +464,7 @@ export default function GridMakerPage() {
     setCanvasDim({ width: 6, height: 4 });
     setNumCols(4);
     setNumRows(2);
+    setDpi(DEFAULT_DPI);
     setSpacingWidthPx(DEFAULT_GAP_PX);
     setSpacingHeightPx(DEFAULT_GAP_PX);
     if (customSizes && customSizes.length > 0) {
@@ -490,30 +492,30 @@ export default function GridMakerPage() {
     }
   };
 
-  const convertToCm = (val: number, fromUnit: Unit): number => {
+  const convertToCm = (val: number, fromUnit: Unit, targetDpi: number): number => {
     if (fromUnit === 'cm') return val;
     if (fromUnit === 'mm') return val / 10;
     if (fromUnit === 'in') return val * 2.54;
-    if (fromUnit === 'px') return (val / DPI) * 2.54;
+    if (fromUnit === 'px') return (val / targetDpi) * 2.54;
     return val;
   };
 
-  const convertFromCm = (cm: number, toUnit: Unit): number => {
+  const convertFromCm = (cm: number, toUnit: Unit, targetDpi: number): number => {
     if (toUnit === 'cm') return cm;
     if (toUnit === 'mm') return cm * 10;
     if (toUnit === 'in') return cm / 2.54;
-    if (toUnit === 'px') return (cm / 2.54) * DPI;
+    if (toUnit === 'px') return (cm / 2.54) * targetDpi;
     return cm;
   };
 
   const handleUnitChange = (nextUnit: Unit) => {
-    const currentWidthInCm = convertToCm(newSize.width, newSize.unit);
-    const currentHeightInCm = convertToCm(newSize.height, newSize.unit);
+    const currentWidthInCm = convertToCm(newSize.width, newSize.unit, newSize.dpi);
+    const currentHeightInCm = convertToCm(newSize.height, newSize.unit, newSize.dpi);
     setNewSize(prev => ({
       ...prev,
       unit: nextUnit,
-      width: nextUnit === 'mm' || nextUnit === 'px' ? Math.round(convertFromCm(currentWidthInCm, nextUnit)) : Number(convertFromCm(currentWidthInCm, nextUnit).toFixed(2)),
-      height: nextUnit === 'mm' || nextUnit === 'px' ? Math.round(convertFromCm(currentHeightInCm, nextUnit)) : Number(convertFromCm(currentHeightInCm, nextUnit).toFixed(2))
+      width: nextUnit === 'mm' || nextUnit === 'px' ? Math.round(convertFromCm(currentWidthInCm, nextUnit, prev.dpi)) : Number(convertFromCm(currentWidthInCm, nextUnit, prev.dpi).toFixed(2)),
+      height: nextUnit === 'mm' || nextUnit === 'px' ? Math.round(convertFromCm(currentHeightInCm, nextUnit, prev.dpi)) : Number(convertFromCm(currentHeightInCm, nextUnit, prev.dpi).toFixed(2))
     }));
   };
 
@@ -528,8 +530,8 @@ export default function GridMakerPage() {
       return;
     }
 
-    const widthInCm = convertToCm(newSize.width, newSize.unit);
-    const heightInCm = convertToCm(newSize.height, newSize.unit);
+    const widthInCm = convertToCm(newSize.width, newSize.unit, newSize.dpi);
+    const heightInCm = convertToCm(newSize.height, newSize.unit, newSize.dpi);
 
     const sizeId = editingSizeId || doc(collection(db, 'users', user.uid, 'custom_passport_sizes')).id;
     const existingSize = customSizes?.find(s => s.id === editingSizeId);
@@ -550,7 +552,7 @@ export default function GridMakerPage() {
     
     setIsAddSizeOpen(false);
     setEditingSizeId(null);
-    setNewSize({ name: '', description: '', width: 35, height: 45, unit: 'mm' });
+    setNewSize({ name: '', description: '', width: 35, height: 45, unit: 'mm', dpi: 300 });
     toast({ title: editingSizeId ? "Size Updated" : "Size Saved Permanently", description: "Resolution profile secured in cloud." });
   };
 
@@ -561,7 +563,8 @@ export default function GridMakerPage() {
       description: size.description,
       width: Math.round(size.widthCm * 10),
       height: Math.round(size.heightCm * 10),
-      unit: 'mm'
+      unit: 'mm',
+      dpi: 300
     });
     setIsAddSizeOpen(true);
   };
@@ -607,8 +610,8 @@ export default function GridMakerPage() {
       const col = i % numCols;
       const row = Math.floor(i / numCols);
       const size = getSizeFromId(slot.sizeId);
-      const wPx = Math.round(size.widthCm * CM_TO_PX);
-      const hPx = Math.round(size.heightCm * CM_TO_PX);
+      const wPx = Math.round(size.widthCm * cmToPx);
+      const hPx = Math.round(size.heightCm * cmToPx);
       if (wPx > colWidths[col]) colWidths[col] = wPx;
       if (hPx > rowHeights[row]) rowHeights[row] = hPx;
     });
@@ -621,8 +624,8 @@ export default function GridMakerPage() {
       const row = Math.floor(i / numCols);
       const slot = slots[i];
       const size = getSizeFromId(slot.sizeId);
-      const slotWidth = Math.round(size.widthCm * CM_TO_PX);
-      const slotHeight = Math.round(size.heightCm * CM_TO_PX);
+      const slotWidth = Math.round(size.widthCm * cmToPx);
+      const slotHeight = Math.round(size.heightCm * cmToPx);
 
       let x = offsetX;
       for (let c = 0; c < col; c++) x += colWidths[c] + spacingWidthPx;
@@ -649,7 +652,7 @@ export default function GridMakerPage() {
         ctx.strokeRect(x, y, slotWidth, slotHeight);
       }
     });
-  }, [slots, canvasWidthPx, canvasHeightPx, numCols, numRows, getSizeFromId, spacingWidthPx, spacingHeightPx]);
+  }, [slots, canvasWidthPx, canvasHeightPx, numCols, numRows, getSizeFromId, spacingWidthPx, spacingHeightPx, cmToPx]);
 
   useEffect(() => { drawCanvas(); }, [drawCanvas]);
 
@@ -695,7 +698,7 @@ export default function GridMakerPage() {
               <Grid3X3 className="h-8 w-8" /> HD Drag & Place Grid
             </h1>
             <p className="text-muted-foreground text-xs font-medium uppercase tracking-widest">
-              300 DPI Rendering • Lossless Original Quality
+              {dpi} DPI Rendering • Lossless Original Quality
             </p>
           </div>
 
@@ -803,6 +806,17 @@ export default function GridMakerPage() {
                   </div>
                 </div>
 
+                <div className="space-y-2 pt-4 border-t">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Global Resolution (DPI)</Label>
+                  <Input 
+                    type="number" 
+                    value={dpi} 
+                    onChange={(e) => setDpi(Math.max(72, parseInt(e.target.value) || 300))} 
+                    className="h-8 text-xs"
+                  />
+                  <p className="text-[9px] text-muted-foreground italic">Affects final exported image resolution.</p>
+                </div>
+
                 <div className="space-y-6 pt-4 border-t">
                   <div className="flex items-center justify-between">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground">Photo Gaps (px)</Label>
@@ -855,7 +869,7 @@ export default function GridMakerPage() {
                       setIsAddSizeOpen(open);
                       if (!open) {
                         setEditingSizeId(null);
-                        setNewSize({ name: '', description: '', width: 35, height: 45, unit: 'mm' });
+                        setNewSize({ name: '', description: '', width: 35, height: 45, unit: 'mm', dpi: 300 });
                       }
                     }}>
                       <DialogTrigger asChild>
@@ -877,7 +891,7 @@ export default function GridMakerPage() {
                             <Input placeholder="Optional purpose..." value={newSize.description} onChange={(e) => setNewSize({...newSize, description: e.target.value})} />
                           </div>
                           <div className="space-y-3">
-                            <Label>Unit & Dimensions (300 DPI)</Label>
+                            <Label>Unit & Dimensions</Label>
                             <Tabs value={newSize.unit} onValueChange={(v) => handleUnitChange(v as Unit)}>
                               <TabsList className="grid w-full grid-cols-4">
                                 <TabsTrigger value="mm">MM</TabsTrigger>
@@ -905,6 +919,14 @@ export default function GridMakerPage() {
                                   onChange={(e) => setNewSize({...newSize, height: Number(e.target.value)})} 
                                 />
                               </div>
+                            </div>
+                            <div className="space-y-2 pt-2">
+                              <Label className="text-xs uppercase font-bold text-muted-foreground">Resolution (DPI)</Label>
+                              <Input 
+                                type="number" 
+                                value={newSize.dpi} 
+                                onChange={(e) => setNewSize({...newSize, dpi: Number(e.target.value)})} 
+                              />
                             </div>
                           </div>
                         </div>
@@ -987,7 +1009,7 @@ export default function GridMakerPage() {
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300 pointer-events-none">
                       <Camera className="h-16 w-16 mb-4 opacity-20" />
                       <p className="text-sm font-bold uppercase tracking-[0.2em] opacity-40 text-center">
-                        300 DPI HD Canvas<br/>Aligned Top-Left
+                        {dpi} DPI HD Canvas<br/>Aligned Top-Left
                       </p>
                     </div>
                   )}

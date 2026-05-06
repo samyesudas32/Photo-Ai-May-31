@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -81,8 +80,6 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 
 type CoatStyle = 'none' | 'suit' | 'blazer' | 'overcoat';
 type Unit = 'cm' | 'mm' | 'in' | 'px';
-
-const DPI = 300;
 
 interface CustomSize {
   id: string;
@@ -219,7 +216,8 @@ export default function EditorPage() {
     description: '',
     width: 35,
     height: 45,
-    unit: 'mm' as Unit
+    unit: 'mm' as Unit,
+    dpi: 300
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -274,7 +272,7 @@ export default function EditorPage() {
 
   const { data: customSizes, isLoading: isSizesLoading } = useCollection<CustomSize>(customSizesQuery);
 
-  // Seed default sizes for new users and handle selection
+  // Seed default sizes
   useEffect(() => {
     if (user && db && customSizes && customSizes.length === 0 && !isSizesLoading && !isUserLoading) {
       const defaultSizes = [
@@ -346,31 +344,31 @@ export default function EditorPage() {
     }
   };
 
-  const convertToCm = (val: number, fromUnit: Unit): number => {
+  const convertToCm = (val: number, fromUnit: Unit, dpi: number = 300): number => {
     if (fromUnit === 'cm') return val;
     if (fromUnit === 'mm') return val / 10;
     if (fromUnit === 'in') return val * 2.54;
-    if (fromUnit === 'px') return (val / DPI) * 2.54;
+    if (fromUnit === 'px') return (val / dpi) * 2.54;
     return val;
   };
 
-  const convertFromCm = (cm: number, toUnit: Unit): number => {
+  const convertFromCm = (cm: number, toUnit: Unit, dpi: number = 300): number => {
     if (toUnit === 'cm') return cm;
     if (toUnit === 'mm') return cm * 10;
     if (toUnit === 'in') return cm / 2.54;
-    if (toUnit === 'px') return (cm / 2.54) * DPI;
+    if (toUnit === 'px') return (cm / 2.54) * dpi;
     return cm;
   };
 
   const handleUnitChange = (nextUnit: Unit) => {
-    const currentWidthInCm = convertToCm(newSize.width, newSize.unit);
-    const currentHeightInCm = convertToCm(newSize.height, newSize.unit);
+    const currentWidthInCm = convertToCm(newSize.width, newSize.unit, newSize.dpi);
+    const currentHeightInCm = convertToCm(newSize.height, newSize.unit, newSize.dpi);
     
     setNewSize(prev => ({
       ...prev,
       unit: nextUnit,
-      width: nextUnit === 'mm' || nextUnit === 'px' ? Math.round(convertFromCm(currentWidthInCm, nextUnit)) : Number(convertFromCm(currentWidthInCm, nextUnit).toFixed(2)),
-      height: nextUnit === 'mm' || nextUnit === 'px' ? Math.round(convertFromCm(currentHeightInCm, nextUnit)) : Number(convertFromCm(currentHeightInCm, nextUnit).toFixed(2))
+      width: nextUnit === 'mm' || nextUnit === 'px' ? Math.round(convertFromCm(currentWidthInCm, nextUnit, prev.dpi)) : Number(convertFromCm(currentWidthInCm, nextUnit, prev.dpi).toFixed(2)),
+      height: nextUnit === 'mm' || nextUnit === 'px' ? Math.round(convertFromCm(currentHeightInCm, nextUnit, prev.dpi)) : Number(convertFromCm(currentHeightInCm, nextUnit, prev.dpi).toFixed(2))
     }));
   };
 
@@ -388,8 +386,8 @@ export default function EditorPage() {
       return;
     }
 
-    const widthInCm = convertToCm(newSize.width, newSize.unit);
-    const heightInCm = convertToCm(newSize.height, newSize.unit);
+    const widthInCm = convertToCm(newSize.width, newSize.unit, newSize.dpi);
+    const heightInCm = convertToCm(newSize.height, newSize.unit, newSize.dpi);
 
     const sizeId = editingSizeId || doc(collection(db, 'users', user.uid, 'custom_passport_sizes')).id;
     const existingSize = customSizes?.find(s => s.id === editingSizeId);
@@ -414,7 +412,7 @@ export default function EditorPage() {
 
     setIsAddSizeOpen(false);
     setEditingSizeId(null);
-    setNewSize({ name: '', description: '', width: 35, height: 45, unit: 'mm' });
+    setNewSize({ name: '', description: '', width: 35, height: 45, unit: 'mm', dpi: 300 });
     toast({
       title: editingSizeId ? "Size Updated" : "Size Saved Permanently",
       description: `Your resolution preset has been secured in the cloud.`,
@@ -428,7 +426,8 @@ export default function EditorPage() {
       description: size.description,
       width: Math.round(size.widthCm * 10),
       height: Math.round(size.heightCm * 10),
-      unit: 'mm'
+      unit: 'mm',
+      dpi: 300
     });
     setIsAddSizeOpen(true);
   };
@@ -795,7 +794,7 @@ export default function EditorPage() {
                       setIsAddSizeOpen(open);
                       if (!open) {
                         setEditingSizeId(null);
-                        setNewSize({ name: '', description: '', width: 35, height: 45, unit: 'mm' });
+                        setNewSize({ name: '', description: '', width: 35, height: 45, unit: 'mm', dpi: 300 });
                       }
                     }}>
                       <DialogTrigger asChild>
@@ -858,6 +857,15 @@ export default function EditorPage() {
                                   onChange={(e) => setNewSize({...newSize, height: Number(e.target.value)})}
                                 />
                               </div>
+                            </div>
+                            <div className="space-y-2 pt-2">
+                              <Label htmlFor="dpi" className="text-xs text-muted-foreground uppercase">Resolution (DPI)</Label>
+                              <Input 
+                                id="dpi" 
+                                type="number" 
+                                value={newSize.dpi}
+                                onChange={(e) => setNewSize({...newSize, dpi: Number(e.target.value)})}
+                              />
                             </div>
                           </div>
                         </div>
