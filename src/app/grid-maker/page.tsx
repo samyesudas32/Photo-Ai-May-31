@@ -21,7 +21,8 @@ import {
   RotateCcw,
   Settings2,
   CheckCircle2,
-  GripVertical
+  GripVertical,
+  MousePointer2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -81,7 +82,7 @@ import { CSS } from '@dnd-kit/utilities';
 // CONSTANTS - High Precision 300 DPI for Professional Printing
 const DPI = 300;
 const CM_TO_PX = DPI / 2.54;
-const DEFAULT_GAP_PX = 61; // Calibrated default for 300 DPI
+const DEFAULT_GAP_PX = 61; // Calibrated default for 300 DPI (approx 0.52cm)
 
 type Unit = 'cm' | 'mm' | 'in' | 'px';
 
@@ -917,35 +918,6 @@ export default function GridMakerPage() {
                   </Select>
                 </div>
 
-                <div className="space-y-3 pt-4 border-t">
-                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Grid Slots - Drag to Reorder</Label>
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleDragEnd}
-                  >
-                    <SortableContext 
-                      items={slots.map(s => s.id)}
-                      strategy={rectSortingStrategy}
-                    >
-                      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${numCols}, 1fr)` }}>
-                        {slots.map((slot, i) => (
-                          <SortableSlot 
-                            key={slot.id}
-                            index={i}
-                            slot={slot}
-                            activeSlot={activeSlot}
-                            onSlotClick={handleSlotClick}
-                            onRemove={handleRemove}
-                            onSizeChange={handleSizeChange}
-                            customSizes={customSizes}
-                          />
-                        ))}
-                      </div>
-                    </SortableContext>
-                  </DndContext>
-                </div>
-
                 <div className="pt-6 border-t space-y-3">
                   <Button className="w-full h-12 font-bold bg-secondary hover:bg-secondary/90 text-white shadow-md" onClick={downloadPNG} disabled={!slots.some(s => s.url)}>
                     <Download className="mr-2 h-4 w-4" /> Export HD PNG
@@ -964,13 +936,12 @@ export default function GridMakerPage() {
                     <RefreshCw className="mr-2 h-4 w-4" /> Reset Grid
                   </Button>
                 </div>
-                <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
               </CardContent>
             </Card>
           </div>
 
-          <div className="lg:col-span-8">
-            <Card className="bg-slate-100 border-none flex flex-col items-center justify-center p-8 min-h-[600px] rounded-3xl overflow-hidden">
+          <div className="lg:col-span-8 space-y-6">
+            <Card className="bg-slate-100 border-none flex flex-col items-center justify-center p-8 min-h-[600px] rounded-3xl overflow-hidden shadow-inner">
               <div className="relative shadow-2xl bg-white rounded-sm overflow-hidden border-8 border-white/50">
                 <div 
                   className="relative bg-white shadow-inner"
@@ -988,8 +959,48 @@ export default function GridMakerPage() {
                 </div>
               </div>
             </Card>
+
+            <Card className="shadow-xl border-none">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <MousePointer2 className="h-4 w-4" /> Interactive Grid Layout - Drag to Reorder
+                </CardTitle>
+                <CardDescription className="text-[10px] font-medium">
+                  Each slot can have a custom resolution. Drag photos to change their print sequence on the HD canvas.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext 
+                    items={slots.map(s => s.id)}
+                    strategy={rectSortingStrategy}
+                  >
+                    <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${numCols}, 1fr)` }}>
+                      {slots.map((slot, i) => (
+                        <SortableSlot 
+                          key={slot.id}
+                          index={i}
+                          slot={slot}
+                          activeSlot={activeSlot}
+                          onSlotClick={handleSlotClick}
+                          onRemove={handleRemove}
+                          onSizeChange={handleSizeChange}
+                          customSizes={customSizes}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              </CardContent>
+            </Card>
           </div>
         </div>
+        <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
+        <input type="file" multiple ref={bulkInputRef} className="hidden" onChange={handleBulkFileChange} accept="image/*" />
       </main>
     </div>
   );
