@@ -19,7 +19,9 @@ import {
   Loader2,
   RefreshCw,
   RotateCcw,
-  Settings2
+  Settings2,
+  CheckCircle2,
+  GripVertical
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -50,7 +52,8 @@ import {
   useMemoFirebase, 
   setDocumentNonBlocking,
   useCollection,
-  useAuth
+  useAuth,
+  deleteDocumentNonBlocking
 } from "@/firebase";
 import { doc, collection, query, orderBy } from "firebase/firestore";
 import { Select, SelectContent, SelectItem, SelectValue, SelectTrigger } from "@/components/ui/select";
@@ -395,7 +398,7 @@ export default function GridMakerPage() {
       id: sizeId,
       userId: user.uid,
       name: newSize.name,
-      description: newSize.description || 'Custom resolution',
+      description: newSize.description || '',
       widthCm: Number(widthInCm.toFixed(2)),
       heightCm: Number(heightInCm.toFixed(2)),
       order: existingSize ? existingSize.order : (customSizes?.length || 0),
@@ -408,6 +411,30 @@ export default function GridMakerPage() {
     setEditingSizeId(null);
     setNewSize({ name: '', description: '', width: 35, height: 45, unit: 'mm' });
     toast({ title: editingSizeId ? "Size Updated" : "Size Saved" });
+  };
+
+  const handleEditSize = (size: CustomSize) => {
+    setEditingSizeId(size.id);
+    setNewSize({
+      name: size.name,
+      description: size.description,
+      width: Math.round(size.widthCm * 10),
+      height: Math.round(size.heightCm * 10),
+      unit: 'mm'
+    });
+    setIsAddSizeOpen(true);
+  };
+
+  const handleDeleteSize = (sizeId: string) => {
+    if (!user || !db) return;
+    deleteDocumentNonBlocking(doc(db, 'users', user.uid, 'custom_passport_sizes', sizeId));
+    if (selectedSizeId === sizeId) {
+      setSelectedSizeId('');
+    }
+    toast({
+      title: "Size Deleted",
+      description: "The resolution definition has been removed.",
+    });
   };
 
   const drawCanvas = useCallback(async () => {
@@ -679,7 +706,7 @@ export default function GridMakerPage() {
 
                 <div className="space-y-4 pt-4 border-t">
                   <div className="flex items-center justify-between">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground">Master Photo Size</Label>
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground">Manage Resolutions</Label>
                     <Dialog open={isAddSizeOpen} onOpenChange={(open) => {
                       setIsAddSizeOpen(open);
                       if (!open) {
@@ -689,7 +716,7 @@ export default function GridMakerPage() {
                     }}>
                       <DialogTrigger asChild>
                         <Button variant="ghost" size="sm" className="h-8 px-2 text-primary font-bold">
-                          <Plus className="h-4 w-4 mr-1" /> New
+                          <Plus className="h-4 w-4 mr-1" /> New Resolution
                         </Button>
                       </DialogTrigger>
                       <DialogContent className="sm:max-w-md">
@@ -700,6 +727,10 @@ export default function GridMakerPage() {
                           <div className="space-y-2">
                             <Label>Name</Label>
                             <Input placeholder="e.g., My Passport" value={newSize.name} onChange={(e) => setNewSize({...newSize, name: e.target.value})} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Description</Label>
+                            <Input placeholder="Optional purpose..." value={newSize.description} onChange={(e) => setNewSize({...newSize, description: e.target.value})} />
                           </div>
                           <div className="space-y-3">
                             <Label>Unit & Dimensions (300 DPI)</Label>
@@ -714,11 +745,24 @@ export default function GridMakerPage() {
                             <div className="grid grid-cols-2 gap-4">
                               <div className="space-y-2">
                                 <Label className="text-xs uppercase font-bold text-muted-foreground">Width ({newSize.unit})</Label>
-                                <Input type="number" value={newSize.width} onChange={(e) => setNewSize({...newSize, width: Number(e.target.value)})} />
+                                <Input 
+                                  type="number" 
+                                  step={newSize.unit === 'px' || newSize.unit === 'mm' ? "1" : "0.01"}
+                                  value={newSize.width} 
+                                  onChange={(e) => setNewSize({...newSize, width: Number(e.target.value)})} 
+                                />
                               </div>
                               <div className="space-y-2">
                                 <Label className="text-xs uppercase font-bold text-muted-foreground">Height ({newSize.unit})</Label>
-                                <Input type="number" value={newSize.height} onChange={(e) => setNewSize({...newSize, height: Number(e.target.value)})} />
+                                <Input 
+                                  type="number" 
+                                  step={newSize.unit === 'px' || newSize.unit === 'mm' ? "1" : "0.01"}
+                                  value={newSize.height} 
+                                  onChange={(e) => setNewSize({...newSize, height: Number(e.target.value)})} 
+                                />
+                              </div>
+                              <div className="col-span-2 text-[10px] text-muted-foreground italic text-center pt-1">
+                                Resulting Resolution: {Math.round(convertToCm(newSize.width, newSize.unit) * CM_TO_PX)} x {Math.round(convertToCm(newSize.height, newSize.unit) * CM_TO_PX)} pixels @ 300 DPI
                               </div>
                             </div>
                           </div>
@@ -730,9 +774,28 @@ export default function GridMakerPage() {
                       </DialogContent>
                     </Dialog>
                   </div>
+
+                  <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                    {customSizes?.map((size) => (
+                      <div key={size.id} className="group flex items-center gap-2 p-2 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold truncate">{size.name}</p>
+                          <p className="text-[10px] text-muted-foreground">{size.widthCm} x {size.heightCm} cm</p>
+                        </div>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditSize(size)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10" onClick={() => handleDeleteSize(size.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                   
                   <Select value={selectedSizeId} onValueChange={handleGlobalSizeChange}>
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="w-full mt-2">
                       <SelectValue placeholder="Set all slots to size..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -746,7 +809,7 @@ export default function GridMakerPage() {
                 </div>
 
                 <div className="space-y-3 pt-4 border-t">
-                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Grid Slots - Set Sizes Manually</Label>
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Grid Slots - Mixed Sizes</Label>
                   <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${numCols}, 1fr)` }}>
                     {slots.map((slot, i) => (
                       <div key={i} className="flex flex-col gap-1">
