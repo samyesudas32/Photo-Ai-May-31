@@ -843,7 +843,7 @@ export default function GridMakerPage() {
 
                 <div className="space-y-4 pt-4 border-t">
                   <div className="flex items-center justify-between">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground">Image Size</Label>
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground">Image SIze</Label>
                     <Dialog open={isAddSizeOpen} onOpenChange={(open) => {
                       setIsAddSizeOpen(open);
                       if (!open) {
@@ -858,7 +858,7 @@ export default function GridMakerPage() {
                       </DialogTrigger>
                       <DialogContent className="sm:max-w-md">
                         <DialogHeader>
-                          <DialogTitle>{editingSizeId ? 'Edit' : 'Add'} Resolution</DialogTitle>
+                          <DialogTitle>{editingSizeId ? 'Edit' : 'Add'} Image Size Presets</DialogTitle>
                         </DialogHeader>
                         <div className="space-y-4 py-4">
                           <div className="space-y-2">
