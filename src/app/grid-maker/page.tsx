@@ -22,7 +22,8 @@ import {
   Settings2,
   CheckCircle2,
   GripVertical,
-  MousePointer2
+  MousePointer2,
+  Undo2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -455,9 +456,20 @@ export default function GridMakerPage() {
 
   const resetGrid = () => {
     setSlots(prev => prev.map(s => ({ ...s, url: null })));
+    toast({ title: "Grid Cleared", description: "All uploaded photos removed." });
+  };
+
+  const resetAllSettings = () => {
+    setCanvasDim({ width: 6, height: 4 });
+    setNumCols(4);
+    setNumRows(2);
     setSpacingWidthPx(DEFAULT_GAP_PX);
     setSpacingHeightPx(DEFAULT_GAP_PX);
-    toast({ title: "Grid Reset", description: "All settings reverted to HD defaults." });
+    if (customSizes && customSizes.length > 0) {
+      setSelectedSizeId(customSizes[0].id);
+      setSlots(prev => prev.map(s => ({ ...s, sizeId: customSizes[0].id })));
+    }
+    toast({ title: "Settings Reset", description: "All parameters returned to high-precision defaults." });
   };
 
   const resetGap = () => {
@@ -759,10 +771,19 @@ export default function GridMakerPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           <div className="lg:col-span-4 space-y-6">
             <Card className="shadow-xl border-none">
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <LayoutGrid className="h-5 w-5 text-primary" /> Configuration
                 </CardTitle>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-8 w-8 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10"
+                  onClick={resetAllSettings}
+                  title="Reset All Configuration"
+                >
+                  <Undo2 className="h-4 w-4" />
+                </Button>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
