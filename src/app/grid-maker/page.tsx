@@ -59,6 +59,25 @@ import { doc, collection, query, orderBy } from "firebase/firestore";
 import { Select, SelectContent, SelectItem, SelectValue, SelectTrigger } from "@/components/ui/select";
 import { initiateAnonymousSignIn } from "@/firebase/non-blocking-login";
 
+// Dnd Kit Imports
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
 // CONSTANTS - High Precision 300 DPI for Professional Printing
 const DPI = 300;
 const CM_TO_PX = DPI / 2.54;
@@ -79,14 +98,98 @@ interface CustomSize {
 }
 
 interface SlotData {
+  id: string; // Stable ID for DND
   url: string | null;
   sizeId: string;
 }
 
-const DEFAULT_SLOT_DATA = (sizeId: string): SlotData => ({
-  url: null,
-  sizeId: sizeId,
-});
+function SortableSlot({ 
+  index, 
+  slot, 
+  activeSlot, 
+  onSlotClick, 
+  onRemove, 
+  onSizeChange, 
+  customSizes,
+  isProcessing 
+}: { 
+  index: number;
+  slot: SlotData;
+  activeSlot: number | null;
+  onSlotClick: (index: number) => void;
+  onRemove: (index: number) => void;
+  onSizeChange: (index: number, sizeId: string) => void;
+  customSizes: CustomSize[] | null;
+  isProcessing: boolean;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: slot.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 'auto',
+    opacity: isDragging ? 0.3 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex flex-col gap-1">
+      <div
+        className={cn(
+          "aspect-[35/45] w-full border-2 border-dashed rounded-lg flex flex-col items-center justify-center overflow-hidden transition-all bg-muted/10 relative",
+          slot.url ? "border-solid border-primary bg-white shadow-sm" : "border-muted",
+          activeSlot === index && "ring-2 ring-primary"
+        )}
+      >
+        <div 
+          {...attributes} 
+          {...listeners}
+          className="absolute top-1 left-1 z-20 cursor-grab active:cursor-grabbing p-1 bg-black/50 rounded-sm hover:bg-primary transition-colors"
+        >
+          <GripVertical className="h-3 w-3 text-white" />
+        </div>
+
+        <div 
+          className="w-full h-full cursor-pointer"
+          onClick={() => onSlotClick(index)}
+        >
+          {slot.url ? (
+            <div className="relative w-full h-full group/image">
+              <Image src={slot.url} alt={`Slot ${index+1}`} fill className="object-cover" />
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/image:opacity-100 transition-opacity flex items-center justify-center">
+                <Button variant="destructive" size="icon" className="h-8 w-8 rounded-full" onClick={(e) => { e.stopPropagation(); onRemove(index); }}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ) : <Plus className="h-4 w-4 text-muted-foreground" />}
+        </div>
+        <span className="absolute bottom-1 right-1 text-[8px] font-black bg-black/60 text-white px-1 rounded-sm">{index + 1}</span>
+      </div>
+      <Select 
+        value={slot.sizeId} 
+        onValueChange={(val) => onSizeChange(index, val)}
+      >
+        <SelectTrigger className="h-7 text-[9px] px-1 font-bold">
+          <SelectValue placeholder="Size" />
+        </SelectTrigger>
+        <SelectContent>
+          {customSizes?.map(size => (
+            <SelectItem key={size.id} value={size.id} className="text-[10px]">
+              {size.name.split(' ')[0]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
 
 export default function GridMakerPage() {
   const { user } = useUser();
@@ -104,6 +207,13 @@ export default function GridMakerPage() {
   
   const totalSlots = useMemo(() => numCols * numRows, [numCols, numRows]);
   const [slots, setSlots] = useState<SlotData[]>([]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // Custom Size Management State
   const [isAddSizeOpen, setIsAddSizeOpen] = useState(false);
@@ -150,12 +260,6 @@ export default function GridMakerPage() {
       }, { merge: true });
     }
   }, [user, db, profile]);
-
-  useEffect(() => {
-    if (profile?.preferredCanvasSize) {
-      setCanvasDim(profile.preferredCanvasSize);
-    }
-  }, [profile]);
 
   const customSizesQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
@@ -215,34 +319,24 @@ export default function GridMakerPage() {
     }
   }, [customSizes, selectedSizeId]);
 
-  // Handle global size change
-  const handleGlobalSizeChange = (sizeId: string) => {
-    setSelectedSizeId(sizeId);
-    setSlots(prev => prev.map(slot => ({ ...slot, sizeId: sizeId })));
-    toast({ title: "Global Size Applied", description: "All slots updated to new dimensions." });
-  };
-
-  // Update specific slot size
-  const handleSlotSizeChange = (index: number, sizeId: string) => {
-    setSlots(prev => {
-      const newSlots = [...prev];
-      newSlots[index] = { ...newSlots[index], sizeId };
-      return newSlots;
-    });
-  };
-
   // Initialize slots
   useEffect(() => {
     setSlots(prev => {
-      const newSlots: SlotData[] = Array(totalSlots).fill(null).map(() => DEFAULT_SLOT_DATA(selectedSizeId));
-      prev.forEach((val, i) => {
-        if (i < totalSlots) {
-          newSlots[i] = val;
+      const nextSlots = [...prev];
+      if (nextSlots.length < totalSlots) {
+        for (let i = nextSlots.length; i < totalSlots; i++) {
+          nextSlots.push({
+            id: `slot-${Math.random().toString(36).substr(2, 9)}`,
+            url: null,
+            sizeId: selectedSizeId || (customSizes?.[0]?.id || '')
+          });
         }
-      });
-      return newSlots;
+      } else if (nextSlots.length > totalSlots) {
+        return nextSlots.slice(0, totalSlots);
+      }
+      return nextSlots;
     });
-  }, [totalSlots, selectedSizeId]);
+  }, [totalSlots, selectedSizeId, customSizes]);
 
   const canvasWidthPx = useMemo(() => Math.round(canvasDim.width * DPI), [canvasDim.width]);
   const canvasHeightPx = useMemo(() => Math.round(canvasDim.height * DPI), [canvasDim.height]);
@@ -342,8 +436,22 @@ export default function GridMakerPage() {
     toast({ title: "Photo Removed" });
   };
 
+  const handleSizeChange = (index: number, sizeId: string) => {
+    setSlots(prev => {
+      const newSlots = [...prev];
+      newSlots[index] = { ...newSlots[index], sizeId };
+      return newSlots;
+    });
+  };
+
+  const handleGlobalSizeChange = (sizeId: string) => {
+    setSelectedSizeId(sizeId);
+    setSlots(prev => prev.map(s => ({ ...s, sizeId })));
+    toast({ title: "Global Size Applied" });
+  };
+
   const resetGrid = () => {
-    setSlots(Array(totalSlots).fill(null).map(() => DEFAULT_SLOT_DATA(selectedSizeId)));
+    setSlots(prev => prev.map(s => ({ ...s, url: null })));
     setSpacingWidthCm(DEFAULT_SPACING);
     setSpacingHeightCm(DEFAULT_SPACING);
     toast({ title: "Grid Reset" });
@@ -353,6 +461,18 @@ export default function GridMakerPage() {
     setSpacingWidthCm(DEFAULT_SPACING);
     setSpacingHeightCm(DEFAULT_SPACING);
     toast({ title: "Gap Reset" });
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (active.id !== over?.id) {
+      setSlots((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over?.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+      toast({ title: "Layout Updated", description: "Photo moved to new position." });
+    }
   };
 
   const convertToCm = (val: number, fromUnit: Unit): number => {
@@ -554,7 +674,7 @@ export default function GridMakerPage() {
               </Link>
             </Button>
             <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-              <Grid3X3 className="h-8 w-8" /> HD Mixed Grid
+              <Grid3X3 className="h-8 w-8" /> HD Drag & Place Grid
             </h1>
             <p className="text-muted-foreground text-xs font-medium uppercase tracking-widest">
               300 DPI Rendering • Lossless Original Quality
@@ -809,48 +929,33 @@ export default function GridMakerPage() {
                 </div>
 
                 <div className="space-y-3 pt-4 border-t">
-                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Grid Slots - Mixed Sizes</Label>
-                  <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${numCols}, 1fr)` }}>
-                    {slots.map((slot, i) => (
-                      <div key={i} className="flex flex-col gap-1">
-                        <div
-                          className={cn(
-                            "aspect-[35/45] w-full border-2 border-dashed rounded-lg flex flex-col items-center justify-center overflow-hidden transition-all bg-muted/10 cursor-pointer relative",
-                            slot.url ? "border-solid border-primary bg-white shadow-sm" : "border-muted",
-                            activeSlot === i && "ring-2 ring-primary"
-                          )}
-                          onClick={() => handleSlotClick(i)}
-                        >
-                          {slot.url ? (
-                            <div className="relative w-full h-full group/image">
-                              <Image src={slot.url} alt={`Slot ${i+1}`} fill className="object-cover" />
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/image:opacity-100 transition-opacity flex items-center justify-center">
-                                <Button variant="destructive" size="icon" className="h-8 w-8 rounded-full" onClick={(e) => { e.stopPropagation(); handleRemove(i); }}>
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-                          ) : <Plus className="h-4 w-4 text-muted-foreground" />}
-                          <span className="absolute top-1 right-1 text-[8px] font-black bg-black/60 text-white px-1 rounded-sm">{i + 1}</span>
-                        </div>
-                        <Select 
-                          value={slot.sizeId} 
-                          onValueChange={(val) => handleSlotSizeChange(i, val)}
-                        >
-                          <SelectTrigger className="h-7 text-[9px] px-1 font-bold">
-                            <SelectValue placeholder="Size" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {customSizes?.map(size => (
-                              <SelectItem key={size.id} value={size.id} className="text-[10px]">
-                                {size.name.split(' ')[0]}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Grid Slots - Drag to Reorder</Label>
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <SortableContext 
+                      items={slots.map(s => s.id)}
+                      strategy={rectSortingStrategy}
+                    >
+                      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${numCols}, 1fr)` }}>
+                        {slots.map((slot, i) => (
+                          <SortableSlot 
+                            key={slot.id}
+                            index={i}
+                            slot={slot}
+                            activeSlot={activeSlot}
+                            onSlotClick={handleSlotClick}
+                            onRemove={handleRemove}
+                            onSizeChange={handleSizeChange}
+                            customSizes={customSizes}
+                            isProcessing={false}
+                          />
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </SortableContext>
+                  </DndContext>
                 </div>
 
                 <div className="pt-6 border-t space-y-3">
