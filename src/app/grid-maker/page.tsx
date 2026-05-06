@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
@@ -19,7 +20,6 @@ import {
   CheckCircle2,
   Loader2,
   RefreshCw,
-  MoveHorizontal,
   RotateCcw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -95,7 +95,7 @@ export default function GridMakerPage() {
   const [canvasDim, setCanvasDim] = useState({ width: 6, height: 4 }); // In inches
   const [numCols, setNumCols] = useState(4);
   const [numRows, setNumRows] = useState(2);
-  const [spacingCm, setSpacingCm] = useState(DEFAULT_SPACING); // Manual gap control
+  const [spacingCm, setSpacingCm] = useState(DEFAULT_SPACING);
   const [selectedSizeId, setSelectedSizeId] = useState<string>('default-passport');
   
   const totalSlots = useMemo(() => numCols * numRows, [numCols, numRows]);
@@ -122,7 +122,7 @@ export default function GridMakerPage() {
   const bulkInputRef = useRef<HTMLInputElement>(null);
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
 
-  // Initialize slots when grid dimensions change or size selection changes
+  // Initialize slots when grid dimensions change
   useEffect(() => {
     setSlots(prev => {
       const newSlots: SlotData[] = Array(totalSlots).fill(null).map(() => DEFAULT_SLOT_DATA(selectedSizeId));
@@ -156,7 +156,7 @@ export default function GridMakerPage() {
 
   const { data: customSizes, isLoading: isSizesLoading } = useCollection<CustomSize>(customSizesQuery);
 
-  // Seed default sizes
+  // Seed default sizes and ensure profile exists
   useEffect(() => {
     const seedDefaults = async () => {
       if (user && db && customSizes && customSizes.length === 0 && !isSizesLoading) {
@@ -187,7 +187,7 @@ export default function GridMakerPage() {
           }
         ];
 
-        // Ensure Profile document exists first
+        // Ensure Profile document exists first to avoid permission errors on sub-collections
         const userRef = doc(db, 'users', user.uid);
         const userSnap = await getDoc(userRef);
         if (!userSnap.exists()) {
@@ -223,27 +223,15 @@ export default function GridMakerPage() {
     }
   }, [customSizes, selectedSizeId]);
 
-  // Derived Pixel Dimensions
+  // Pixel Dimensions
   const canvasWidthPx = useMemo(() => Math.round(canvasDim.width * DPI), [canvasDim.width]);
   const canvasHeightPx = useMemo(() => Math.round(canvasDim.height * DPI), [canvasDim.height]);
   
   const getSizeFromId = useCallback((sizeId: string) => {
     const size = customSizes?.find(s => s.id === sizeId);
     if (size) return { widthCm: size.widthCm, heightCm: size.heightCm };
-    if (sizeId === 'default-passport') return { widthCm: 3.5, heightCm: 4.5 };
-    if (sizeId === 'default-stamp') return { widthCm: 2.0, heightCm: 2.5 };
-    if (sizeId === 'default-pan') return { widthCm: 2.5, heightCm: 3.5 };
     return { widthCm: 3.5, heightCm: 4.5 };
   }, [customSizes]);
-
-  const getColumnIndices = useCallback((index: number) => {
-    const colIndex = index % numCols;
-    const indices = [];
-    for (let r = 0; r < numRows; r++) {
-      indices.push(r * numCols + colIndex);
-    }
-    return indices;
-  }, [numCols, numRows]);
 
   const handleSlotClick = (index: number) => {
     setActiveSlot(index);
@@ -258,15 +246,12 @@ export default function GridMakerPage() {
         reader.onload = () => {
           const newData = reader.result as string;
           const newSlots = [...slots];
-          const colIndices = getColumnIndices(activeSlot);
-          colIndices.forEach(idx => {
-            newSlots[idx] = { 
-              ...newSlots[idx],
-              url: newData, 
-            };
-          });
+          newSlots[activeSlot] = { 
+            ...newSlots[activeSlot],
+            url: newData, 
+          };
           setSlots(newSlots);
-          toast({ title: "Photo Assigned", description: "Original quality maintained." });
+          toast({ title: "Photo Added", description: "Original quality maintained." });
         };
         reader.readAsDataURL(file);
       }
@@ -302,13 +287,10 @@ export default function GridMakerPage() {
 
     targetIndices.forEach((targetIndex, idx) => {
       const data = loadedFiles[idx]?.data || loadedFiles[0].data;
-      const colIndices = getColumnIndices(targetIndex);
-      colIndices.forEach(colIdx => {
-        newSlots[colIdx] = { 
-          ...newSlots[colIdx],
-          url: data, 
-        };
-      });
+      newSlots[targetIndex] = { 
+        ...newSlots[targetIndex],
+        url: data, 
+      };
     });
 
     setSlots(newSlots);
@@ -325,24 +307,12 @@ export default function GridMakerPage() {
     toast({ title: "Photo Removed" });
   };
 
-  const handleSizeChange = (newSizeId: string) => {
-    setSelectedSizeId(newSizeId);
-    if (activeSlot !== null) {
-      const newSlots = [...slots];
-      const colIndices = getColumnIndices(activeSlot);
-      colIndices.forEach(idx => {
-        newSlots[idx] = { ...newSlots[idx], sizeId: newSizeId };
-      });
-      setSlots(newSlots);
-    }
-  };
-
   const resetGrid = () => {
     setSlots(Array(totalSlots).fill(null).map(() => DEFAULT_SLOT_DATA(selectedSizeId)));
     setSpacingCm(DEFAULT_SPACING);
     setNumCols(4);
     setNumRows(2);
-    toast({ title: "Grid Reset", description: "All slots cleared and settings returned to default." });
+    toast({ title: "Grid Reset", description: "All slots and settings returned to default." });
   };
 
   const resetGap = () => {
@@ -383,17 +353,6 @@ export default function GridMakerPage() {
     if (!newSize.name || !newSize.width || !newSize.height) {
       toast({ variant: "destructive", title: "Missing Data", description: "Name and dimensions are required." });
       return;
-    }
-
-    const userRef = doc(db, 'users', user.uid);
-    const userSnap = await getDoc(userRef);
-    if (!userSnap.exists()) {
-      await setDoc(userRef, {
-        id: user.uid,
-        email: user.email || 'anonymous@pixelpass.ai',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
     }
 
     const widthInCm = convertToCm(newSize.width, newSize.unit);
@@ -473,6 +432,7 @@ export default function GridMakerPage() {
       if (hPx > rowHeights[row]) rowHeights[row] = hPx;
     });
 
+    // Start from top-left with a margin equal to the gap
     const offsetX = spacingPx; 
     const offsetY = spacingPx;
 
@@ -530,7 +490,7 @@ export default function GridMakerPage() {
     if (!canvasRef.current) return;
     const link = document.createElement("a");
     link.download = `pixelpass-hd.jpg`;
-    link.href = canvasRef.current.toDataURL("image/jpeg", 1.0);
+    link.href = canvasRef.current.toDataURL("image/jpeg", 1.0); // Maximum quality
     link.click();
   };
 
@@ -562,14 +522,14 @@ export default function GridMakerPage() {
           <div className="space-y-1">
             <Button variant="ghost" size="sm" className="-ml-2 mb-2" asChild>
               <Link href="/">
-                <ArrowLeft className="h-4 w-4 mr-2" /> Back
+                <ArrowLeft className="h-4 w-4 mr-2" /> Back to Home
               </Link>
             </Button>
             <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
               <Grid3X3 className="h-8 w-8" /> HD Grid Maker
             </h1>
             <p className="text-muted-foreground text-sm font-medium">
-              Format: {canvasDim.width}x{canvasDim.height}in • Original Quality 300 DPI Rendering
+              300 DPI Rendering • {canvasDim.width}x{canvasDim.height}in • Lossless Quality
             </p>
           </div>
 
@@ -774,7 +734,7 @@ export default function GridMakerPage() {
                   </div>
                   
                   <div className="flex gap-2">
-                    <Select value={selectedSizeId} onValueChange={handleSizeChange}>
+                    <Select value={selectedSizeId} onValueChange={setSelectedSizeId}>
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select size" />
                       </SelectTrigger>
@@ -790,7 +750,7 @@ export default function GridMakerPage() {
                 </div>
 
                 <div className="space-y-3 pt-4 border-t">
-                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Interactive Grid Slots ({totalSlots})</Label>
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Grid Slots ({totalSlots})</Label>
                   <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${numCols}, 1fr)` }}>
                     {slots.map((slot, i) => (
                       <div key={i} className="relative group">
@@ -812,8 +772,8 @@ export default function GridMakerPage() {
                               </div>
                             </div>
                           ) : <Plus className="h-4 w-4 text-muted-foreground" />}
-                          <span className="absolute top-1 right-1 text-[8px] font-black bg-black/60 text-white px-1 rounded-sm">{i + 1}</span>
                         </div>
+                        <span className="absolute top-1 right-1 text-[8px] font-black bg-black/60 text-white px-1 rounded-sm">{i + 1}</span>
                       </div>
                     ))}
                   </div>
