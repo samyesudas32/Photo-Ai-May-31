@@ -95,7 +95,8 @@ export default function GridMakerPage() {
   const [canvasDim, setCanvasDim] = useState({ width: 6, height: 4 }); // In inches
   const [numCols, setNumCols] = useState(4);
   const [numRows, setNumRows] = useState(2);
-  const [spacingCm, setSpacingCm] = useState(DEFAULT_SPACING);
+  const [spacingWidthCm, setSpacingWidthCm] = useState(DEFAULT_SPACING);
+  const [spacingHeightCm, setSpacingHeightCm] = useState(DEFAULT_SPACING);
   const [selectedSizeId, setSelectedSizeId] = useState<string>('');
   
   const totalSlots = useMemo(() => numCols * numRows, [numCols, numRows]);
@@ -211,7 +212,7 @@ export default function GridMakerPage() {
     }
   }, [customSizes, selectedSizeId]);
 
-  // Handle global size change (affects all empty slots or can be a master reset)
+  // Handle global size change
   const handleGlobalSizeChange = (sizeId: string) => {
     setSelectedSizeId(sizeId);
     setSlots(prev => prev.map(slot => ({ ...slot, sizeId: sizeId })));
@@ -238,7 +239,7 @@ export default function GridMakerPage() {
       });
       return newSlots;
     });
-  }, [totalSlots]);
+  }, [totalSlots, selectedSizeId]);
 
   const canvasWidthPx = useMemo(() => Math.round(canvasDim.width * DPI), [canvasDim.width]);
   const canvasHeightPx = useMemo(() => Math.round(canvasDim.height * DPI), [canvasDim.height]);
@@ -340,12 +341,14 @@ export default function GridMakerPage() {
 
   const resetGrid = () => {
     setSlots(Array(totalSlots).fill(null).map(() => DEFAULT_SLOT_DATA(selectedSizeId)));
-    setSpacingCm(DEFAULT_SPACING);
+    setSpacingWidthCm(DEFAULT_SPACING);
+    setSpacingHeightCm(DEFAULT_SPACING);
     toast({ title: "Grid Reset" });
   };
 
   const resetGap = () => {
-    setSpacingCm(DEFAULT_SPACING);
+    setSpacingWidthCm(DEFAULT_SPACING);
+    setSpacingHeightCm(DEFAULT_SPACING);
     toast({ title: "Gap Reset" });
   };
 
@@ -413,7 +416,9 @@ export default function GridMakerPage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const spacingPx = Math.round(spacingCm * CM_TO_PX);
+    const spacingWidthPx = Math.round(spacingWidthCm * CM_TO_PX);
+    const spacingHeightPx = Math.round(spacingHeightCm * CM_TO_PX);
+    
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     ctx.clearRect(0, 0, canvasWidthPx, canvasHeightPx);
@@ -443,8 +448,8 @@ export default function GridMakerPage() {
       if (hPx > rowHeights[row]) rowHeights[row] = hPx;
     });
 
-    const offsetX = spacingPx; 
-    const offsetY = spacingPx;
+    const offsetX = spacingWidthPx; 
+    const offsetY = spacingHeightPx;
 
     images.forEach((img, i) => {
       const col = i % numCols;
@@ -455,10 +460,10 @@ export default function GridMakerPage() {
       const slotHeight = Math.round(size.heightCm * CM_TO_PX);
 
       let x = offsetX;
-      for (let c = 0; c < col; c++) x += colWidths[c] + spacingPx;
+      for (let c = 0; c < col; c++) x += colWidths[c] + spacingWidthPx;
 
       let y = offsetY;
-      for (let r = 0; r < row; r++) y += rowHeights[r] + spacingPx;
+      for (let r = 0; r < row; r++) y += rowHeights[r] + spacingHeightPx;
 
       if (x + slotWidth > canvasWidthPx || y + slotHeight > canvasHeightPx) return;
 
@@ -479,7 +484,7 @@ export default function GridMakerPage() {
         ctx.strokeRect(x, y, slotWidth, slotHeight);
       }
     });
-  }, [slots, canvasWidthPx, canvasHeightPx, numCols, numRows, getSizeFromId, spacingCm]);
+  }, [slots, canvasWidthPx, canvasHeightPx, numCols, numRows, getSizeFromId, spacingWidthCm, spacingHeightCm]);
 
   useEffect(() => { drawCanvas(); }, [drawCanvas]);
 
@@ -627,31 +632,48 @@ export default function GridMakerPage() {
                   </div>
                 </div>
 
-                <div className="space-y-4 pt-4 border-t">
+                <div className="space-y-6 pt-4 border-t">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Label className="text-[10px] font-black uppercase text-muted-foreground">Photo Gap (cm)</Label>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-4 w-4 rounded-full text-muted-foreground hover:text-primary"
-                        onClick={resetGap}
-                        title="Reset gap to 0.3cm"
-                      >
-                        <RotateCcw className="h-3 w-3" />
-                      </Button>
-                    </div>
-                    <span className="text-[10px] font-bold text-primary">{spacingCm}cm</span>
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground">Photo Gaps (cm)</Label>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-4 w-4 rounded-full text-muted-foreground hover:text-primary"
+                      onClick={resetGap}
+                      title="Reset gaps to 0.3cm"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                    </Button>
                   </div>
-                  <div className="flex gap-4 items-center">
-                    <Slider 
-                      value={[spacingCm]} 
-                      min={0} 
-                      max={2} 
-                      step={0.1} 
-                      onValueChange={(val) => setSpacingCm(val[0])}
-                      className="flex-1"
-                    />
+                  
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-[9px] font-bold uppercase text-muted-foreground">Gap Width</Label>
+                        <span className="text-[9px] font-bold text-primary">{spacingWidthCm}cm</span>
+                      </div>
+                      <Slider 
+                        value={[spacingWidthCm]} 
+                        min={0} 
+                        max={2} 
+                        step={0.1} 
+                        onValueChange={(val) => setSpacingWidthCm(val[0])}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-[9px] font-bold uppercase text-muted-foreground">Gap Height</Label>
+                        <span className="text-[9px] font-bold text-primary">{spacingHeightCm}cm</span>
+                      </div>
+                      <Slider 
+                        value={[spacingHeightCm]} 
+                        min={0} 
+                        max={2} 
+                        step={0.1} 
+                        onValueChange={(val) => setSpacingHeightCm(val[0])}
+                      />
+                    </div>
                   </div>
                 </div>
 
