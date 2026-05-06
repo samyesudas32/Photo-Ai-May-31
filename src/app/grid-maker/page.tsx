@@ -614,7 +614,20 @@ export default function GridMakerPage() {
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
-                    <Label>Target Slots (1-{totalSlots}):</Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[10px] font-black uppercase text-muted-foreground">Target Slots (1-{totalSlots}):</Label>
+                      <Button 
+                        variant="secondary" 
+                        size="sm" 
+                        className="h-7 text-[10px] font-bold"
+                        onClick={() => {
+                          setTargetSlotString("1,2,5,6");
+                          bulkInputRef.current?.click();
+                        }}
+                      >
+                        (1, 2, 5, 6) Upload
+                      </Button>
+                    </div>
                     <Input placeholder="e.g., 1, 3-5, 8" value={targetSlotString} onChange={(e) => setTargetSlotString(e.target.value)} />
                   </div>
                   <div 
