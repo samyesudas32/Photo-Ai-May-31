@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -224,7 +225,7 @@ export default function EditorPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const auth = useAuth();
 
@@ -236,20 +237,20 @@ export default function EditorPage() {
   );
 
   useEffect(() => {
-    if (!user && auth) {
+    if (!user && !isUserLoading && auth) {
       initiateAnonymousSignIn(auth);
     }
-  }, [user, auth]);
+  }, [user, isUserLoading, auth]);
 
   const userProfileRef = useMemoFirebase(() => {
-    if (!db || !user) return null;
+    if (!db || !user?.uid) return null;
     return doc(db, 'users', user.uid);
   }, [db, user]);
 
   const { data: profile } = useDoc<any>(userProfileRef);
 
   useEffect(() => {
-    if (user && db && !profile && !isProcessing) {
+    if (user && db && !profile && !isUserLoading) {
       setDocumentNonBlocking(doc(db, 'users', user.uid), {
         id: user.uid,
         email: user.email || 'anonymous@pixelpass.ai',
@@ -258,7 +259,7 @@ export default function EditorPage() {
         updatedAt: new Date().toISOString()
       }, { merge: true });
     }
-  }, [user, db, profile, isProcessing]);
+  }, [user, db, profile, isUserLoading]);
 
   useEffect(() => {
     if (profile?.lastSelectedBgColor) {
@@ -267,15 +268,15 @@ export default function EditorPage() {
   }, [profile?.lastSelectedBgColor]);
 
   const customSizesQuery = useMemoFirebase(() => {
-    if (!db || !user) return null;
+    if (!db || !user?.uid) return null;
     return query(collection(db, 'users', user.uid, 'custom_passport_sizes'), orderBy('order', 'asc'));
   }, [db, user]);
 
-  const { data: customSizes } = useCollection<CustomSize>(customSizesQuery);
+  const { data: customSizes, isLoading: isSizesLoading } = useCollection<CustomSize>(customSizesQuery);
 
   // Seed default sizes for new users and handle selection
   useEffect(() => {
-    if (user && db && customSizes && customSizes.length === 0) {
+    if (user && db && customSizes && customSizes.length === 0 && !isSizesLoading && !isUserLoading) {
       const defaultSizes = [
         {
           id: 'default-passport',
@@ -316,7 +317,7 @@ export default function EditorPage() {
         );
       });
     }
-  }, [user, db, customSizes]);
+  }, [user, db, customSizes, isSizesLoading, isUserLoading]);
 
   useEffect(() => {
     if (customSizes && customSizes.length > 0 && !selectedSizeId) {
@@ -374,7 +375,10 @@ export default function EditorPage() {
   };
 
   const handleSaveCustomSize = () => {
-    if (!user || !db) return;
+    if (!user || !db) {
+      toast({ variant: "destructive", title: "Wait a moment", description: "Your session is still connecting to our servers." });
+      return;
+    }
     if (!newSize.name || !newSize.width || !newSize.height) {
       toast({
         variant: "destructive",
@@ -394,7 +398,7 @@ export default function EditorPage() {
       id: sizeId,
       userId: user.uid,
       name: newSize.name,
-      description: newSize.description,
+      description: newSize.description || '',
       widthCm: Number(widthInCm.toFixed(2)),
       heightCm: Number(heightInCm.toFixed(2)),
       order: existingSize ? existingSize.order : (customSizes?.length || 0),
@@ -412,8 +416,8 @@ export default function EditorPage() {
     setEditingSizeId(null);
     setNewSize({ name: '', description: '', width: 35, height: 45, unit: 'mm' });
     toast({
-      title: editingSizeId ? "Size Updated" : "Size Saved",
-      description: `Your custom passport size has been ${editingSizeId ? 'updated' : 'saved'}.`,
+      title: editingSizeId ? "Size Updated" : "Size Saved Permanently",
+      description: `Your resolution preset has been secured in the cloud.`,
     });
   };
 
@@ -448,10 +452,9 @@ export default function EditorPage() {
       const oldIndex = customSizes.findIndex((s) => s.id === active.id);
       const newIndex = customSizes.findIndex((s) => s.id === over?.id);
 
-      const newOrder = arrayMove(customSizes, oldIndex, newIndex);
+      const newOrderArr = arrayMove(customSizes, oldIndex, newIndex);
       
-      // Update the order field for each size that changed its position
-      newOrder.forEach((size, index) => {
+      newOrderArr.forEach((size, index) => {
         if (size.order !== index && user && db) {
           updateDocumentNonBlocking(
             doc(db, 'users', user.uid, 'custom_passport_sizes', size.id),
@@ -640,7 +643,6 @@ export default function EditorPage() {
               </Card>
             </div>
 
-            {/* Moved Photo Styling below Official Standards */}
             <Card className="bg-white/50 border-none shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
@@ -788,7 +790,7 @@ export default function EditorPage() {
 
                 <div className="space-y-4 pt-4 border-t">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Photo Size</Label>
+                    <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Image SIze</Label>
                     <Dialog open={isAddSizeOpen} onOpenChange={(open) => {
                       setIsAddSizeOpen(open);
                       if (!open) {
@@ -798,12 +800,12 @@ export default function EditorPage() {
                     }}>
                       <DialogTrigger asChild>
                         <Button variant="ghost" size="sm" className="h-8 px-2 text-primary font-bold">
-                          <Plus className="h-4 w-4 mr-1" /> New Size
+                          <Plus className="h-4 w-4 mr-1" /> New Resolution
                         </Button>
                       </DialogTrigger>
                       <DialogContent className="sm:max-w-md">
                         <DialogHeader>
-                          <DialogTitle>{editingSizeId ? 'Edit' : 'Add'} Custom Passport Size</DialogTitle>
+                          <DialogTitle>{editingSizeId ? 'Edit' : 'Add'} Image Size Presets</DialogTitle>
                           <DialogDescription>Define specific dimensions for your photo requirements.</DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4 py-4">
@@ -873,12 +875,16 @@ export default function EditorPage() {
                       onValueChange={setSelectedSizeId}
                       className="space-y-2"
                     >
-                      {customSizes?.length === 0 && !isProcessing && (
+                      {isSizesLoading ? (
+                        <div className="text-center py-4">
+                          <RefreshCw className="h-4 w-4 animate-spin mx-auto text-muted-foreground" />
+                        </div>
+                      ) : customSizes?.length === 0 ? (
                         <div className="text-center py-4 px-2 border-2 border-dashed rounded-lg bg-muted/20">
                           <Ruler className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-50" />
-                          <p className="text-xs text-muted-foreground font-medium">No sizes defined. Create one to get started.</p>
+                          <p className="text-xs text-muted-foreground font-medium">No sizes defined.</p>
                         </div>
-                      )}
+                      ) : null}
 
                       <DndContext
                         sensors={sensors}
@@ -911,7 +917,7 @@ export default function EditorPage() {
                     <Button 
                       className="w-full h-12 text-lg font-bold shadow-lg" 
                       onClick={handleProcess}
-                      disabled={!previewUrl || isProcessing}
+                      disabled={!previewUrl || isProcessing || isUserLoading}
                     >
                       {isProcessing ? "Processing..." : "Generate Passport Photo"}
                     </Button>

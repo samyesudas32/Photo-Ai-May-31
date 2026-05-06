@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
@@ -518,7 +519,7 @@ export default function GridMakerPage() {
 
   const handleSaveCustomSize = () => {
     if (!user || !db) {
-      toast({ variant: "destructive", title: "Authentication Required", description: "Waiting for secure connection..." });
+      toast({ variant: "destructive", title: "Wait a moment", description: "Your session is still connecting to our servers." });
       return;
     }
     
@@ -529,11 +530,6 @@ export default function GridMakerPage() {
 
     const widthInCm = convertToCm(newSize.width, newSize.unit);
     const heightInCm = convertToCm(newSize.height, newSize.unit);
-
-    if (isNaN(widthInCm) || isNaN(heightInCm)) {
-      toast({ variant: "destructive", title: "Dimension Error", description: "The provided dimensions are invalid." });
-      return;
-    }
 
     const sizeId = editingSizeId || doc(collection(db, 'users', user.uid, 'custom_passport_sizes')).id;
     const existingSize = customSizes?.find(s => s.id === editingSizeId);
@@ -555,7 +551,7 @@ export default function GridMakerPage() {
     setIsAddSizeOpen(false);
     setEditingSizeId(null);
     setNewSize({ name: '', description: '', width: 35, height: 45, unit: 'mm' });
-    toast({ title: editingSizeId ? "Size Updated" : "Size Saved", description: "Resolution profile is now active." });
+    toast({ title: editingSizeId ? "Size Updated" : "Size Saved Permanently", description: "Resolution profile secured in cloud." });
   };
 
   const handleEditSize = (size: CustomSize) => {
@@ -921,7 +917,11 @@ export default function GridMakerPage() {
                   </div>
 
                   <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
-                    {customSizes?.map((size) => (
+                    {isSizesLoading ? (
+                      <div className="text-center py-4">
+                        <RefreshCw className="h-4 w-4 animate-spin mx-auto text-muted-foreground" />
+                      </div>
+                    ) : customSizes?.map((size) => (
                       <div key={size.id} className="group flex items-center gap-2 p-2 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-bold truncate">{size.name}</p>
