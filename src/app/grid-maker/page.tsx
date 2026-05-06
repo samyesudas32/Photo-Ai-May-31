@@ -970,7 +970,7 @@ export default function GridMakerPage() {
                   <MousePointer2 className="h-4 w-4" /> Interactive Grid Layout
                 </CardTitle>
                 <CardDescription className="text-[10px] font-medium">
-                  Drag to reorder photos on the HD canvas. Each slot can have a custom resolution.
+                  Drag to reorder photos on the HD canvas. Management slots now mirror the exact column structure of your output.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -983,7 +983,12 @@ export default function GridMakerPage() {
                     items={slots.map(s => s.id)}
                     strategy={rectSortingStrategy}
                   >
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    <div 
+                      className="grid gap-4"
+                      style={{ 
+                        gridTemplateColumns: `repeat(${numCols}, minmax(0, 1fr))`,
+                      }}
+                    >
                       {slots.map((slot, i) => (
                         <SortableSlot 
                           key={slot.id}
