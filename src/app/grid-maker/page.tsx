@@ -18,7 +18,6 @@ import {
   Loader2,
   RefreshCw,
   RotateCcw,
-  Settings2,
   CheckCircle2,
   GripVertical,
   MousePointer2,
@@ -37,7 +36,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
@@ -52,11 +50,12 @@ import {
   useDoc, 
   useMemoFirebase, 
   setDocumentNonBlocking,
+  updateDocumentNonBlocking,
   useCollection,
   useAuth,
   deleteDocumentNonBlocking
 } from "@/firebase";
-import { doc, collection, query, orderBy, updateDoc } from "firebase/firestore";
+import { doc, collection, query, orderBy } from "firebase/firestore";
 import { Select, SelectContent, SelectItem, SelectValue, SelectTrigger } from "@/components/ui/select";
 import { initiateAnonymousSignIn } from "@/firebase/non-blocking-login";
 
@@ -323,6 +322,7 @@ export default function GridMakerPage() {
   // Initialize slots
   useEffect(() => {
     setSlots(prev => {
+      if (prev.length === totalSlots) return prev;
       const nextSlots = [...prev];
       if (nextSlots.length < totalSlots) {
         for (let i = nextSlots.length; i < totalSlots; i++) {
@@ -583,7 +583,7 @@ export default function GridMakerPage() {
   };
 
   const drawCanvas = useCallback(async () => {
-    if (!canvasRef.current) return;
+    if (typeof window === 'undefined' || !canvasRef.current) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
