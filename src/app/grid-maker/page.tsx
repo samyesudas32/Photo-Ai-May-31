@@ -48,10 +48,12 @@ import {
   useDoc, 
   useMemoFirebase, 
   setDocumentNonBlocking,
-  useCollection
+  useCollection,
+  useAuth
 } from "@/firebase";
-import { doc, collection, query, orderBy, setDoc, getDoc } from "firebase/firestore";
+import { doc, collection, query, orderBy } from "firebase/firestore";
 import { Select, SelectContent, SelectItem, SelectValue, SelectTrigger } from "@/components/ui/select";
+import { initiateAnonymousSignIn } from "@/firebase/non-blocking-login";
 
 // CONSTANTS - High Precision 300 DPI for Professional Printing
 const DPI = 300;
@@ -85,6 +87,7 @@ const DEFAULT_SLOT_DATA = (sizeId: string): SlotData => ({
 export default function GridMakerPage() {
   const { user } = useUser();
   const db = useFirestore();
+  const auth = useAuth();
   const { toast } = useToast();
 
   // Canvas & Grid State
@@ -92,7 +95,7 @@ export default function GridMakerPage() {
   const [numCols, setNumCols] = useState(4);
   const [numRows, setNumRows] = useState(2);
   const [spacingCm, setSpacingCm] = useState(DEFAULT_SPACING);
-  const [selectedSizeId, setSelectedSizeId] = useState<string>('default-passport');
+  const [selectedSizeId, setSelectedSizeId] = useState<string>('');
   
   const totalSlots = useMemo(() => numCols * numRows, [numCols, numRows]);
   const [slots, setSlots] = useState<SlotData[]>([]);
@@ -118,27 +121,31 @@ export default function GridMakerPage() {
   const bulkInputRef = useRef<HTMLInputElement>(null);
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
 
-  // Initialize/Update slots when grid dimensions or global size change
+  // Auth & Profile Initialization
   useEffect(() => {
-    setSlots(prev => {
-      const newSlots: SlotData[] = Array(totalSlots).fill(null).map(() => DEFAULT_SLOT_DATA(selectedSizeId));
-      prev.forEach((val, i) => {
-        if (i < totalSlots) {
-          // Keep existing photo URL but update to the current selected size for consistency
-          newSlots[i] = { ...val, sizeId: selectedSizeId };
-        }
-      });
-      return newSlots;
-    });
-  }, [totalSlots, selectedSizeId]);
+    if (!user && auth) {
+      initiateAnonymousSignIn(auth);
+    }
+  }, [user, auth]);
 
-  // Load User Data
   const userProfileRef = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
     return doc(db, 'users', user.uid);
   }, [db, user]);
 
   const { data: profile } = useDoc<any>(userProfileRef);
+
+  // Ensure user profile exists
+  useEffect(() => {
+    if (user && db && !profile) {
+      setDocumentNonBlocking(doc(db, 'users', user.uid), {
+        id: user.uid,
+        email: user.email || 'anonymous@pixelpass.ai',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    }
+  }, [user, db, profile]);
 
   useEffect(() => {
     if (profile?.preferredCanvasSize) {
@@ -153,63 +160,49 @@ export default function GridMakerPage() {
 
   const { data: customSizes, isLoading: isSizesLoading } = useCollection<CustomSize>(customSizesQuery);
 
-  // Seed default sizes and ensure profile exists
+  // Seed default sizes
   useEffect(() => {
-    const seedDefaults = async () => {
-      if (user && db && customSizes && customSizes.length === 0 && !isSizesLoading) {
-        const defaultSizes = [
-          {
-            id: 'default-passport',
-            name: 'Passport Photo',
-            description: 'Standard International (35x45mm)',
-            widthCm: 3.5,
-            heightCm: 4.5,
-            order: 0
-          },
-          {
-            id: 'default-stamp',
-            name: 'Stamp Size',
-            description: 'Small format (20x25mm)',
-            widthCm: 2.0,
-            heightCm: 2.5,
-            order: 1
-          },
-          {
-            id: 'default-pan',
-            name: 'PAN Card Size',
-            description: 'Official PAN Card (25x35mm)',
-            widthCm: 2.5,
-            heightCm: 3.5,
-            order: 2
-          }
-        ];
+    if (user && db && customSizes && customSizes.length === 0 && !isSizesLoading) {
+      const defaultSizes = [
+        {
+          id: 'default-passport',
+          name: 'Passport Photo',
+          description: 'Standard International (35x45mm)',
+          widthCm: 3.5,
+          heightCm: 4.5,
+          order: 0
+        },
+        {
+          id: 'default-stamp',
+          name: 'Stamp Size',
+          description: 'Small format (20x25mm)',
+          widthCm: 2.0,
+          heightCm: 2.5,
+          order: 1
+        },
+        {
+          id: 'default-pan',
+          name: 'PAN Card Size',
+          description: 'Official PAN Card (25x35mm)',
+          widthCm: 2.5,
+          heightCm: 3.5,
+          order: 2
+        }
+      ];
 
-        const userRef = doc(db, 'users', user.uid);
-        const userSnap = await getDoc(userRef);
-        if (!userSnap.exists()) {
-          await setDoc(userRef, {
-            id: user.uid,
-            email: user.email || 'anonymous@pixelpass.ai',
+      defaultSizes.forEach(size => {
+        setDocumentNonBlocking(
+          doc(db, 'users', user.uid, 'custom_passport_sizes', size.id),
+          {
+            ...size,
+            userId: user.uid,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
-          });
-        }
-
-        for (const size of defaultSizes) {
-          setDocumentNonBlocking(
-            doc(db, 'users', user.uid, 'custom_passport_sizes', size.id),
-            {
-              ...size,
-              userId: user.uid,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            },
-            { merge: true }
-          );
-        }
-      }
-    };
-    seedDefaults();
+          },
+          { merge: true }
+        );
+      });
+    }
   }, [user, db, customSizes, isSizesLoading]);
 
   // Handle initial selection
@@ -218,6 +211,19 @@ export default function GridMakerPage() {
       setSelectedSizeId(customSizes[0].id);
     }
   }, [customSizes, selectedSizeId]);
+
+  // Initialize/Update slots when grid dimensions or global size change
+  useEffect(() => {
+    setSlots(prev => {
+      const newSlots: SlotData[] = Array(totalSlots).fill(null).map(() => DEFAULT_SLOT_DATA(selectedSizeId));
+      prev.forEach((val, i) => {
+        if (i < totalSlots) {
+          newSlots[i] = { ...val, sizeId: selectedSizeId };
+        }
+      });
+      return newSlots;
+    });
+  }, [totalSlots, selectedSizeId]);
 
   const canvasWidthPx = useMemo(() => Math.round(canvasDim.width * DPI), [canvasDim.width]);
   const canvasHeightPx = useMemo(() => Math.round(canvasDim.height * DPI), [canvasDim.height]);
@@ -374,7 +380,7 @@ export default function GridMakerPage() {
     }));
   };
 
-  const handleSaveCustomSize = async () => {
+  const handleSaveCustomSize = () => {
     if (!user || !db) return;
     if (!newSize.name || !newSize.width || !newSize.height) {
       toast({ variant: "destructive", title: "Missing Data", description: "Name and dimensions are required." });
@@ -383,17 +389,6 @@ export default function GridMakerPage() {
 
     const widthInCm = convertToCm(newSize.width, newSize.unit);
     const heightInCm = convertToCm(newSize.height, newSize.unit);
-
-    const userRef = doc(db, 'users', user.uid);
-    const userSnap = await getDoc(userRef);
-    if (!userSnap.exists()) {
-      await setDoc(userRef, {
-        id: user.uid,
-        email: user.email || 'anonymous@pixelpass.ai',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
-    }
 
     const sizeId = editingSizeId || doc(collection(db, 'users', user.uid, 'custom_passport_sizes')).id;
     const existingSize = customSizes?.find(s => s.id === editingSizeId);
@@ -411,6 +406,7 @@ export default function GridMakerPage() {
     };
 
     setDocumentNonBlocking(doc(db, 'users', user.uid, 'custom_passport_sizes', sizeId), sizeData, { merge: true });
+    
     setIsAddSizeOpen(false);
     setEditingSizeId(null);
     setNewSize({ name: '', description: '', width: 35, height: 45, unit: 'mm' });
@@ -469,7 +465,6 @@ export default function GridMakerPage() {
       if (hPx > rowHeights[row]) rowHeights[row] = hPx;
     });
 
-    // START FROM TOP-LEFT TO MAXIMIZE SPACE EFFICIENCY
     const offsetX = spacingPx; 
     const offsetY = spacingPx;
 
@@ -527,7 +522,7 @@ export default function GridMakerPage() {
     if (!canvasRef.current) return;
     const link = document.createElement("a");
     link.download = `pixelpass-hd.jpg`;
-    link.href = canvasRef.current.toDataURL("image/jpeg", 1.0); // 1.0 FOR MAXIMUM QUALITY
+    link.href = canvasRef.current.toDataURL("image/jpeg", 1.0);
     link.click();
   };
 
@@ -626,7 +621,7 @@ export default function GridMakerPage() {
                           bulkInputRef.current?.click();
                         }}
                       >
-                        (1, 2, 5, 6) Pattern
+                        (1, 2, 5, 6) Upload
                       </Button>
                     </div>
                     <Input placeholder="e.g., 1, 3-5, 8" value={targetSlotString} onChange={(e) => setTargetSlotString(e.target.value)} />
