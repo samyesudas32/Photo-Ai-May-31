@@ -5,7 +5,7 @@ import {
   Upload, 
   Download, 
   ArrowLeft, 
-  Grid3X3, 
+  Grid3x3, 
   FileText, 
   Trash2,
   Plus,
@@ -41,7 +41,6 @@ import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
 import Link from "next/link";
-import { jsPDF } from "jspdf";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { 
@@ -94,6 +93,7 @@ interface CustomSize {
   userId: string;
   createdAt: string;
   updatedAt?: string;
+  dpi?: number;
 }
 
 interface SlotData {
@@ -230,7 +230,7 @@ export default function GridMakerPage() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDistributionOpen, setIsDistributionOpen] = useState(false);
   const [targetSlotString, setTargetSlotString] = useState("");
-  const [bulkFiles, setBulkFiles] = useState<File[]>([]);
+  const [bulkFiles, setBulkFiles] = useState<any[]>([]);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -279,7 +279,8 @@ export default function GridMakerPage() {
           description: 'Standard International (35x45mm)',
           widthCm: 3.5,
           heightCm: 4.5,
-          order: 0
+          order: 0,
+          dpi: 300
         },
         {
           id: 'default-stamp',
@@ -287,7 +288,8 @@ export default function GridMakerPage() {
           description: 'Small format (20x25mm)',
           widthCm: 2.0,
           heightCm: 2.5,
-          order: 1
+          order: 1,
+          dpi: 300
         },
         {
           id: 'default-pan',
@@ -295,7 +297,8 @@ export default function GridMakerPage() {
           description: 'Official PAN Card (25x35mm)',
           widthCm: 2.5,
           heightCm: 3.5,
-          order: 2
+          order: 2,
+          dpi: 300
         }
       ];
 
@@ -543,6 +546,7 @@ export default function GridMakerPage() {
       description: newSize.description || '',
       widthCm: Number(widthInCm.toFixed(2)),
       heightCm: Number(heightInCm.toFixed(2)),
+      dpi: newSize.dpi,
       order: existingSize ? existingSize.order : (customSizes?.length || 0),
       createdAt: existingSize ? existingSize.createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -564,7 +568,7 @@ export default function GridMakerPage() {
       width: Math.round(size.widthCm * 10),
       height: Math.round(size.heightCm * 10),
       unit: 'mm',
-      dpi: 300
+      dpi: size.dpi || 300
     });
     setIsAddSizeOpen(true);
   };
@@ -672,8 +676,9 @@ export default function GridMakerPage() {
     link.click();
   };
 
-  const downloadPDF = () => {
+  const downloadPDF = async () => {
     if (!canvasRef.current) return;
+    const { jsPDF } = await import("jspdf");
     const pdf = new jsPDF({
       orientation: canvasDim.width > canvasDim.height ? "landscape" : "portrait",
       unit: "in", format: [canvasDim.width, canvasDim.height]
@@ -695,7 +700,7 @@ export default function GridMakerPage() {
               </Link>
             </Button>
             <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-              <Grid3X3 className="h-8 w-8" /> HD Drag & Place Grid
+              <Grid3x3 className="h-8 w-8" /> HD Drag & Place Grid
             </h1>
             <p className="text-muted-foreground text-xs font-medium uppercase tracking-widest">
               {dpi} DPI Rendering • Lossless Original Quality
@@ -864,7 +869,7 @@ export default function GridMakerPage() {
 
                 <div className="space-y-4 pt-4 border-t">
                   <div className="flex items-center justify-between">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground">Image SIze</Label>
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground">Image Size</Label>
                     <Dialog open={isAddSizeOpen} onOpenChange={(open) => {
                       setIsAddSizeOpen(open);
                       if (!open) {

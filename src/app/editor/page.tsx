@@ -91,6 +91,7 @@ interface CustomSize {
   userId: string;
   createdAt: string;
   updatedAt?: string;
+  dpi?: number;
 }
 
 const PRESET_BG_COLORS = [
@@ -201,7 +202,6 @@ export default function EditorPage() {
   const [progress, setProgress] = useState(0);
   const [selectedStyle, setSelectedStyle] = useState<CoatStyle>('none');
   const [selectedSizeId, setSelectedSizeId] = useState<string>('');
-  const [selectedBgColor, setSelectedBgColor] = useState<string>('#FFFFFF');
   
   // Photo Styling states
   const [hasStroke, setHasStroke] = useState(false);
@@ -282,7 +282,8 @@ export default function EditorPage() {
           description: 'Standard International (35x45mm)',
           widthCm: 3.5,
           heightCm: 4.5,
-          order: 0
+          order: 0,
+          dpi: 300
         },
         {
           id: 'default-stamp',
@@ -290,7 +291,8 @@ export default function EditorPage() {
           description: 'Small format for documents (20x25mm)',
           widthCm: 2.0,
           heightCm: 2.5,
-          order: 1
+          order: 1,
+          dpi: 300
         },
         {
           id: 'default-pan',
@@ -298,7 +300,8 @@ export default function EditorPage() {
           description: 'Official Indian PAN Card (25x35mm)',
           widthCm: 2.5,
           heightCm: 3.5,
-          order: 2
+          order: 2,
+          dpi: 300
         }
       ];
 
@@ -399,6 +402,7 @@ export default function EditorPage() {
       description: newSize.description || '',
       widthCm: Number(widthInCm.toFixed(2)),
       heightCm: Number(heightInCm.toFixed(2)),
+      dpi: newSize.dpi,
       order: existingSize ? existingSize.order : (customSizes?.length || 0),
       createdAt: existingSize ? existingSize.createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -427,7 +431,7 @@ export default function EditorPage() {
       width: Math.round(size.widthCm * 10),
       height: Math.round(size.heightCm * 10),
       unit: 'mm',
-      dpi: 300
+      dpi: size.dpi || 300
     });
     setIsAddSizeOpen(true);
   };
@@ -789,7 +793,7 @@ export default function EditorPage() {
 
                 <div className="space-y-4 pt-4 border-t">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Image SIze</Label>
+                    <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Image Size</Label>
                     <Dialog open={isAddSizeOpen} onOpenChange={(open) => {
                       setIsAddSizeOpen(open);
                       if (!open) {
