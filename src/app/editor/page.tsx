@@ -202,6 +202,7 @@ export default function EditorPage() {
   const [progress, setProgress] = useState(0);
   const [selectedStyle, setSelectedStyle] = useState<CoatStyle>('none');
   const [selectedSizeId, setSelectedSizeId] = useState<string>('');
+  const [selectedBgColor, setSelectedBgColor] = useState("#FFFFFF");
   
   // Photo Styling states
   const [hasStroke, setHasStroke] = useState(false);

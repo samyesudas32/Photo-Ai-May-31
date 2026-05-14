@@ -33,7 +33,9 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: '10mb',
       allowedOrigins: [
-        '*.cloudworkstations.dev'
+        '*.cloudworkstations.dev',
+        '*.firebaseapp.com',
+        'localhost:9002'
       ],
     },
   },
