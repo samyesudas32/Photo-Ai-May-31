@@ -5,7 +5,7 @@ import {
   Upload, 
   Download, 
   ArrowLeft, 
-  Grid3X3, 
+  Grid3x3, 
   FileText, 
   Trash2,
   Plus,
@@ -700,7 +700,7 @@ export default function GridMakerPage() {
               </Link>
             </Button>
             <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-              <Grid3X3 className="h-8 w-8" /> HD Drag & Place Grid
+              <Grid3x3 className="h-8 w-8" /> HD Drag & Place Grid
             </h1>
             <p className="text-muted-foreground text-xs font-medium uppercase tracking-widest">
               {dpi} DPI Rendering • Lossless Original Quality
