@@ -21,7 +21,8 @@ import {
   CheckCircle2,
   GripVertical,
   MousePointer2,
-  Undo2
+  Undo2,
+  Settings2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -77,9 +78,14 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-// CONSTANTS - High Precision Baseline
+// CONSTANTS - High Precision Blueprint Defaults
 const DEFAULT_DPI = 300;
-const DEFAULT_GAP_PX = 61; // approx 0.52cm at 300 DPI
+const BLUEPRINT_GAP_W = 61;
+const BLUEPRINT_GAP_H = 88;
+const BLUEPRINT_MARGIN_L = 39;
+const BLUEPRINT_MARGIN_R = 50;
+const BLUEPRINT_MARGIN_T = 63;
+const BLUEPRINT_MARGIN_B = 71;
 
 type Unit = 'cm' | 'mm' | 'in' | 'px';
 
@@ -97,7 +103,7 @@ interface CustomSize {
 }
 
 interface SlotData {
-  id: string; // Stable ID for DND
+  id: string; 
   url: string | null;
   sizeId: string;
 }
@@ -110,7 +116,6 @@ function SortableSlot({
   onRemove, 
   onSizeChange, 
   customSizes,
-  numCols
 }: { 
   index: number;
   slot: SlotData;
@@ -119,7 +124,6 @@ function SortableSlot({
   onRemove: (index: number) => void;
   onSizeChange: (index: number, sizeId: string) => void;
   customSizes: CustomSize[] | null;
-  numCols: number;
 }) {
   const {
     attributes,
@@ -201,8 +205,17 @@ export default function GridMakerPage() {
   const [canvasDim, setCanvasDim] = useState({ width: 6, height: 4 }); // In inches
   const [numCols, setNumCols] = useState(4);
   const [numRows, setNumRows] = useState(2);
-  const [spacingWidthPx, setSpacingWidthPx] = useState(DEFAULT_GAP_PX);
-  const [spacingHeightPx, setSpacingHeightPx] = useState(DEFAULT_GAP_PX);
+  
+  // High-Precision Spacing (Pixels)
+  const [spacingWidthPx, setSpacingWidthPx] = useState(BLUEPRINT_GAP_W);
+  const [spacingHeightPx, setSpacingHeightPx] = useState(BLUEPRINT_GAP_H);
+  
+  // Margin Controls (Pixels)
+  const [marginLeft, setMarginLeft] = useState(BLUEPRINT_MARGIN_L);
+  const [marginRight, setMarginRight] = useState(BLUEPRINT_MARGIN_R);
+  const [marginTop, setMarginTop] = useState(BLUEPRINT_MARGIN_T);
+  const [marginBottom, setMarginBottom] = useState(BLUEPRINT_MARGIN_B);
+
   const [selectedSizeId, setSelectedSizeId] = useState<string>('');
   
   const totalSlots = useMemo(() => numCols * numRows, [numCols, numRows]);
@@ -283,21 +296,12 @@ export default function GridMakerPage() {
           dpi: 300
         },
         {
-          id: 'default-stamp',
-          name: 'Stamp Size',
-          description: 'Small format (20x25mm)',
-          widthCm: 2.0,
-          heightCm: 2.5,
+          id: 'blueprint-box',
+          name: 'Blueprint Box',
+          description: 'Custom 382x490px at 300DPI',
+          widthCm: 3.23, // 382/300 * 2.54
+          heightCm: 4.15, // 490/300 * 2.54
           order: 1,
-          dpi: 300
-        },
-        {
-          id: 'default-pan',
-          name: 'PAN Card Size',
-          description: 'Official PAN Card (25x35mm)',
-          widthCm: 2.5,
-          heightCm: 3.5,
-          order: 2,
           dpi: 300
         }
       ];
@@ -352,6 +356,30 @@ export default function GridMakerPage() {
     if (size) return { widthCm: size.widthCm, heightCm: size.heightCm };
     return { widthCm: 3.5, heightCm: 4.5 };
   }, [customSizes]);
+
+  const applyBlueprint = () => {
+    setCanvasDim({ width: 6, height: 4 });
+    setDpi(300);
+    setNumCols(4);
+    setNumRows(2);
+    setSpacingWidthPx(BLUEPRINT_GAP_W);
+    setSpacingHeightPx(BLUEPRINT_GAP_H);
+    setMarginLeft(BLUEPRINT_MARGIN_L);
+    setMarginRight(BLUEPRINT_MARGIN_R);
+    setMarginTop(BLUEPRINT_MARGIN_T);
+    setMarginBottom(BLUEPRINT_MARGIN_B);
+    
+    const blueprintSize = customSizes?.find(s => s.id === 'blueprint-box');
+    if (blueprintSize) {
+      setSelectedSizeId(blueprintSize.id);
+      setSlots(prev => prev.map(s => ({ ...s, sizeId: blueprintSize.id })));
+    }
+    
+    toast({
+      title: "Blueprint Applied",
+      description: "Canvas set to 1800x1202 pixels (6x4 in at 300 DPI).",
+    });
+  };
 
   const handleSlotClick = (index: number) => {
     setActiveSlot(index);
@@ -468,19 +496,17 @@ export default function GridMakerPage() {
     setNumCols(4);
     setNumRows(2);
     setDpi(DEFAULT_DPI);
-    setSpacingWidthPx(DEFAULT_GAP_PX);
-    setSpacingHeightPx(DEFAULT_GAP_PX);
+    setSpacingWidthPx(BLUEPRINT_GAP_W);
+    setSpacingHeightPx(BLUEPRINT_GAP_H);
+    setMarginLeft(BLUEPRINT_MARGIN_L);
+    setMarginRight(BLUEPRINT_MARGIN_R);
+    setMarginTop(BLUEPRINT_MARGIN_T);
+    setMarginBottom(BLUEPRINT_MARGIN_B);
     if (customSizes && customSizes.length > 0) {
       setSelectedSizeId(customSizes[0].id);
       setSlots(prev => prev.map(s => ({ ...s, sizeId: customSizes[0].id })));
     }
     toast({ title: "Settings Reset", description: "All parameters returned to high-precision defaults." });
-  };
-
-  const resetGap = () => {
-    setSpacingWidthPx(DEFAULT_GAP_PX);
-    setSpacingHeightPx(DEFAULT_GAP_PX);
-    toast({ title: "Gap Reset", description: "Spacing returned to 61px baseline." });
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -620,9 +646,6 @@ export default function GridMakerPage() {
       if (hPx > rowHeights[row]) rowHeights[row] = hPx;
     });
 
-    const offsetX = spacingWidthPx; 
-    const offsetY = spacingHeightPx;
-
     images.forEach((img, i) => {
       const col = i % numCols;
       const row = Math.floor(i / numCols);
@@ -631,10 +654,10 @@ export default function GridMakerPage() {
       const slotWidth = Math.round(size.widthCm * cmToPx);
       const slotHeight = Math.round(size.heightCm * cmToPx);
 
-      let x = offsetX;
+      let x = marginLeft;
       for (let c = 0; c < col; c++) x += colWidths[c] + spacingWidthPx;
 
-      let y = offsetY;
+      let y = marginTop;
       for (let r = 0; r < row; r++) y += rowHeights[r] + spacingHeightPx;
 
       if (x + slotWidth > canvasWidthPx || y + slotHeight > canvasHeightPx) return;
@@ -656,7 +679,7 @@ export default function GridMakerPage() {
         ctx.strokeRect(x, y, slotWidth, slotHeight);
       }
     });
-  }, [slots, canvasWidthPx, canvasHeightPx, numCols, numRows, getSizeFromId, spacingWidthPx, spacingHeightPx, cmToPx]);
+  }, [slots, canvasWidthPx, canvasHeightPx, numCols, numRows, getSizeFromId, spacingWidthPx, spacingHeightPx, cmToPx, marginLeft, marginTop]);
 
   useEffect(() => { drawCanvas(); }, [drawCanvas]);
 
@@ -708,6 +731,10 @@ export default function GridMakerPage() {
           </div>
 
           <div className="flex flex-wrap gap-3">
+            <Button onClick={applyBlueprint} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
+              <Settings2 className="mr-2 h-4 w-4" /> Standard 4x6 Blueprint
+            </Button>
+            
             <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" className="rounded-full">
@@ -749,17 +776,6 @@ export default function GridMakerPage() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label className="text-[10px] font-black uppercase text-muted-foreground">Target Slots:</Label>
-                      <Button 
-                        variant="secondary" 
-                        size="sm" 
-                        className="h-7 text-[10px] font-bold"
-                        onClick={() => {
-                          setTargetSlotString("1,2,5,6");
-                          bulkInputRef.current?.click();
-                        }}
-                      >
-                        (1, 2, 5, 6) Upload
-                      </Button>
                     </div>
                     <Input placeholder="e.g., 1, 3-5, 8" value={targetSlotString} onChange={(e) => setTargetSlotString(e.target.value)} />
                   </div>
@@ -823,19 +839,29 @@ export default function GridMakerPage() {
                 </div>
 
                 <div className="space-y-6 pt-4 border-t">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground">Photo Gaps (px)</Label>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-4 w-4 rounded-full text-muted-foreground hover:text-primary"
-                      onClick={resetGap}
-                      title="Reset gaps to 61px baseline"
-                    >
-                      <RotateCcw className="h-3 w-3" />
-                    </Button>
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Margins (px)</Label>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+                    <div className="space-y-1">
+                      <Label className="text-[9px] text-muted-foreground uppercase">Top</Label>
+                      <Input type="number" value={marginTop} onChange={(e) => setMarginTop(parseInt(e.target.value) || 0)} className="h-7 text-[10px]" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[9px] text-muted-foreground uppercase">Bottom</Label>
+                      <Input type="number" value={marginBottom} onChange={(e) => setMarginBottom(parseInt(e.target.value) || 0)} className="h-7 text-[10px]" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[9px] text-muted-foreground uppercase">Left</Label>
+                      <Input type="number" value={marginLeft} onChange={(e) => setMarginLeft(parseInt(e.target.value) || 0)} className="h-7 text-[10px]" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[9px] text-muted-foreground uppercase">Right</Label>
+                      <Input type="number" value={marginRight} onChange={(e) => setMarginRight(parseInt(e.target.value) || 0)} className="h-7 text-[10px]" />
+                    </div>
                   </div>
-                  
+                </div>
+
+                <div className="space-y-6 pt-4 border-t">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Photo Gaps (px)</Label>
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
@@ -879,21 +905,17 @@ export default function GridMakerPage() {
                     }}>
                       <DialogTrigger asChild>
                         <Button variant="ghost" size="sm" className="h-8 px-2 text-primary font-bold">
-                          <Plus className="h-4 w-4 mr-1" /> New Resolution
+                          <Plus className="h-4 w-4 mr-1" /> New Preset
                         </Button>
                       </DialogTrigger>
                       <DialogContent className="sm:max-w-md">
                         <DialogHeader>
-                          <DialogTitle>{editingSizeId ? 'Edit' : 'Add'} Image Size Presets</DialogTitle>
+                          <DialogTitle>{editingSizeId ? 'Edit' : 'Add'} Image Size Preset</DialogTitle>
                         </DialogHeader>
                         <div className="space-y-4 py-4">
                           <div className="space-y-2">
                             <Label>Name</Label>
                             <Input placeholder="e.g., My Passport" value={newSize.name} onChange={(e) => setNewSize({...newSize, name: e.target.value})} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Description</Label>
-                            <Input placeholder="Optional purpose..." value={newSize.description} onChange={(e) => setNewSize({...newSize, description: e.target.value})} />
                           </div>
                           <div className="space-y-3">
                             <Label>Unit & Dimensions</Label>
@@ -943,7 +965,7 @@ export default function GridMakerPage() {
                     </Dialog>
                   </div>
 
-                  <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                  <div className="space-y-2 max-h-[150px] overflow-y-auto pr-1">
                     {isSizesLoading ? (
                       <div className="text-center py-4">
                         <RefreshCw className="h-4 w-4 animate-spin mx-auto text-muted-foreground" />
@@ -968,7 +990,7 @@ export default function GridMakerPage() {
                   
                   <Select value={selectedSizeId} onValueChange={handleGlobalSizeChange}>
                     <SelectTrigger className="w-full mt-2">
-                      <SelectValue placeholder="Set all slots to size..." />
+                      <SelectValue placeholder="Global Preset Size..." />
                     </SelectTrigger>
                     <SelectContent>
                       {customSizes?.map(size => (
@@ -1007,14 +1029,18 @@ export default function GridMakerPage() {
               <div className="relative shadow-2xl bg-white rounded-sm overflow-hidden border-8 border-white/50">
                 <div 
                   className="relative bg-white shadow-inner"
-                  style={{ width: '600px', height: `${(600 / canvasDim.width) * canvasDim.height}px` }}
+                  style={{ 
+                    width: '600px', 
+                    height: `${(600 / canvasDim.width) * canvasDim.height}px` 
+                  }}
                 >
                   <canvas ref={canvasRef} width={canvasWidthPx} height={canvasHeightPx} className="absolute inset-0 w-full h-full" />
                   {!slots.some(s => s.url) && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300 pointer-events-none">
                       <Camera className="h-16 w-16 mb-4 opacity-20" />
                       <p className="text-sm font-bold uppercase tracking-[0.2em] opacity-40 text-center">
-                        {dpi} DPI HD Canvas<br/>Aligned Top-Left
+                        {canvasWidthPx} x {canvasHeightPx} pixels<br/>
+                        {dpi} DPI HD Canvas
                       </p>
                     </div>
                   )}
@@ -1028,7 +1054,7 @@ export default function GridMakerPage() {
                   <MousePointer2 className="h-4 w-4" /> Interactive Grid Layout
                 </CardTitle>
                 <CardDescription className="text-[10px] font-medium">
-                  Drag to reorder photos on the HD canvas. Management slots now mirror the exact column structure of your output.
+                  This interactive area mirrors your output structure. Drag to reorder photos on the HD canvas.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1057,7 +1083,6 @@ export default function GridMakerPage() {
                           onRemove={handleRemove}
                           onSizeChange={handleSizeChange}
                           customSizes={customSizes}
-                          numCols={numCols}
                         />
                       ))}
                     </div>
