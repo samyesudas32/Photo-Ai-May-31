@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowRight, CheckCircle2, UserCheck, Zap, Download, Layers, Camera, Grid3x3 } from 'lucide-react';
+import { ArrowRight, CheckCircle2, UserCheck, Zap, Download, Layers, Camera, Grid3X3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import Header from '@/components/Header';
@@ -35,7 +35,7 @@ export default function LandingPage() {
                   </Button>
                   <Button size="lg" variant="outline" className="h-14 px-8 text-lg font-semibold bg-white/50 backdrop-blur" asChild>
                     <Link href="/grid-maker">
-                      <Grid3x3 className="mr-2 h-5 w-5" /> Try Grid Maker
+                      <Grid3X3 className="mr-2 h-5 w-5" /> Try Grid Maker
                     </Link>
                   </Button>
                 </div>
