@@ -547,7 +547,7 @@ export default function EditorPage() {
               <ArrowLeft className="h-4 w-4 mr-2" /> Back to Home
             </Link>
           </Button>
-          <h1 className="text-3xl font-bold tracking-tight">Passport Photo Editor</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-primary">Passport Photo Editor</h1>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -804,7 +804,7 @@ export default function EditorPage() {
                     }}>
                       <DialogTrigger asChild>
                         <Button variant="ghost" size="sm" className="h-8 px-2 text-primary font-bold">
-                          <Plus className="h-4 w-4 mr-1" /> New Resolution
+                          <Plus className="h-4 w-4 mr-1" /> New Preset
                         </Button>
                       </DialogTrigger>
                       <DialogContent className="sm:max-w-md">

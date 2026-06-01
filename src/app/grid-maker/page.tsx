@@ -5,7 +5,7 @@ import {
   Upload, 
   Download, 
   ArrowLeft, 
-  Grid3X3, 
+  Grid3x3, 
   FileText, 
   Trash2,
   Plus,
@@ -59,26 +59,7 @@ import { doc, collection, query, orderBy } from "firebase/firestore";
 import { Select, SelectContent, SelectItem, SelectValue, SelectTrigger } from "@/components/ui/select";
 import { initiateAnonymousSignIn } from "@/firebase/non-blocking-login";
 
-// Dnd Kit Imports
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  rectSortingStrategy,
-  useSortable,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-
-// CONSTANTS - High Precision Blueprint Defaults
+// CONSTANTS - High Precision Blueprint Defaults (at 300 DPI)
 const DEFAULT_DPI = 300;
 const BLUEPRINT_GAP_W = 61;
 const BLUEPRINT_GAP_H = 88;
@@ -141,6 +122,8 @@ function SortableSlot({
     opacity: isDragging ? 0.3 : 1,
   };
 
+  const currentSize = customSizes?.find(s => s.id === slot.sizeId);
+
   return (
     <div ref={setNodeRef} style={style} className="flex flex-col gap-1">
       <div
@@ -193,6 +176,25 @@ function SortableSlot({
     </div>
   );
 }
+
+// Dnd Kit Imports needs to be inside the file or at top
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 export default function GridMakerPage() {
   const { user, isUserLoading } = useUser();
@@ -348,8 +350,6 @@ export default function GridMakerPage() {
   }, [totalSlots, selectedSizeId, customSizes]);
 
   const cmToPx = useMemo(() => dpi / 2.54, [dpi]);
-  const canvasWidthPx = useMemo(() => Math.round(canvasDim.width * dpi), [canvasDim.width, dpi]);
-  const canvasHeightPx = useMemo(() => Math.round(canvasDim.height * dpi), [canvasDim.height, dpi]);
   
   const getSizeFromId = useCallback((sizeId: string) => {
     const size = customSizes?.find(s => s.id === sizeId);
@@ -357,8 +357,37 @@ export default function GridMakerPage() {
     return { widthCm: 3.5, heightCm: 4.5 };
   }, [customSizes]);
 
+  // Derived Pixel Dimensions
+  const canvasWidthPx = useMemo(() => {
+    // We strictly use the pixel-based summing for the blueprint case, or inches*dpi for others.
+    // For manual control, we'll let the user define margins and gaps.
+    let totalW = marginLeft + marginRight;
+    const colWidths = Array(numCols).fill(0);
+    slots.slice(0, numCols).forEach((slot, i) => {
+      const size = getSizeFromId(slot.sizeId);
+      colWidths[i] = Math.round(size.widthCm * cmToPx);
+    });
+    totalW += colWidths.reduce((a, b) => a + b, 0);
+    totalW += (numCols - 1) * spacingWidthPx;
+    return totalW;
+  }, [numCols, slots, getSizeFromId, cmToPx, marginLeft, marginRight, spacingWidthPx]);
+
+  const canvasHeightPx = useMemo(() => {
+    let totalH = marginTop + marginBottom;
+    const rowHeights = Array(numRows).fill(0);
+    for (let r = 0; r < numRows; r++) {
+      const slotIndex = r * numCols;
+      if (slots[slotIndex]) {
+        const size = getSizeFromId(slots[slotIndex].sizeId);
+        rowHeights[r] = Math.round(size.heightCm * cmToPx);
+      }
+    }
+    totalH += rowHeights.reduce((a, b) => a + b, 0);
+    totalH += (numRows - 1) * spacingHeightPx;
+    return totalH;
+  }, [numRows, numCols, slots, getSizeFromId, cmToPx, marginTop, marginBottom, spacingHeightPx]);
+
   const applyBlueprint = () => {
-    setCanvasDim({ width: 6, height: 4 });
     setDpi(300);
     setNumCols(4);
     setNumRows(2);
@@ -703,10 +732,10 @@ export default function GridMakerPage() {
     if (!canvasRef.current) return;
     const { jsPDF } = await import("jspdf");
     const pdf = new jsPDF({
-      orientation: canvasDim.width > canvasDim.height ? "landscape" : "portrait",
-      unit: "in", format: [canvasDim.width, canvasDim.height]
+      orientation: canvasWidthPx > canvasHeightPx ? "landscape" : "portrait",
+      unit: "in", format: [canvasWidthPx / dpi, canvasHeightPx / dpi]
     });
-    pdf.addImage(canvasRef.current.toDataURL("image/png"), "PNG", 0, 0, canvasDim.width, canvasDim.height);
+    pdf.addImage(canvasRef.current.toDataURL("image/png"), "PNG", 0, 0, canvasWidthPx / dpi, canvasHeightPx / dpi);
     pdf.save(`pixelpass-hd.pdf`);
   };
 
@@ -723,10 +752,10 @@ export default function GridMakerPage() {
               </Link>
             </Button>
             <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-              <Grid3X3 className="h-8 w-8" /> HD Drag & Place Grid
+              <Grid3x3 className="h-8 w-8" /> HD Drag & Place Grid
             </h1>
             <p className="text-muted-foreground text-xs font-medium uppercase tracking-widest">
-              {dpi} DPI Rendering • Lossless Original Quality
+              {dpi} DPI Rendering • {canvasWidthPx} x {canvasHeightPx} Pixels
             </p>
           </div>
 
@@ -910,7 +939,7 @@ export default function GridMakerPage() {
                       </DialogTrigger>
                       <DialogContent className="sm:max-w-md">
                         <DialogHeader>
-                          <DialogTitle>{editingSizeId ? 'Edit' : 'Add'} Image Size Preset</DialogTitle>
+                          <DialogTitle>{editingSizeId ? 'Edit' : 'Add'} Image Size Presets</DialogTitle>
                         </DialogHeader>
                         <div className="space-y-4 py-4">
                           <div className="space-y-2">
@@ -1031,7 +1060,7 @@ export default function GridMakerPage() {
                   className="relative bg-white shadow-inner"
                   style={{ 
                     width: '600px', 
-                    height: `${(600 / canvasDim.width) * canvasDim.height}px` 
+                    height: `${(600 / canvasWidthPx) * canvasHeightPx}px` 
                   }}
                 >
                   <canvas ref={canvasRef} width={canvasWidthPx} height={canvasHeightPx} className="absolute inset-0 w-full h-full" />
