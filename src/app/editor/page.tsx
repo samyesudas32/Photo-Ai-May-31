@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import Image from "next/image";
 import { 
   Upload, 
@@ -228,6 +228,7 @@ export default function EditorPage() {
   const db = useFirestore();
   const auth = useAuth();
 
+  // Memoize sensors to prevent recreation on every render
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {

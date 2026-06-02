@@ -5,7 +5,7 @@ import {
   Upload, 
   Download, 
   ArrowLeft, 
-  Grid3x3, 
+  Grid3X3, 
   FileText, 
   Trash2,
   Plus,
@@ -74,7 +74,6 @@ import {
   SortableContext,
   sortableKeyboardCoordinates,
   rectSortingStrategy,
-  verticalListSortingStrategy,
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -223,33 +222,13 @@ export default function GridMakerPage() {
   const totalSlots = useMemo(() => numCols * numRows, [numCols, numRows]);
   const [slots, setSlots] = useState<SlotData[]>([]);
 
+  // Memoize sensors to prevent recreation on every render
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
-
-  const [isAddSizeOpen, setIsAddSizeOpen] = useState(false);
-  const [editingSizeId, setEditingSizeId] = useState<string | null>(null);
-  const [newSize, setNewSize] = useState({
-    name: '',
-    description: '',
-    width: 35,
-    height: 45,
-    unit: 'mm' as Unit,
-    dpi: 300
-  });
-
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isDistributionOpen, setIsDistributionOpen] = useState(false);
-  const [targetSlotString, setTargetSlotString] = useState("");
-  const [bulkFiles, setBulkFiles] = useState<any[]>([]);
-  
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const bulkInputRef = useRef<HTMLInputElement>(null);
-  const [activeSlot, setActiveSlot] = useState<number | null>(null);
 
   useEffect(() => {
     if (!user && !isUserLoading && auth) {
@@ -326,6 +305,7 @@ export default function GridMakerPage() {
     }
   }, [customSizes, selectedSizeId]);
 
+  // Refined slots sync logic to prevent infinite loops or redundant updates
   useEffect(() => {
     setSlots(prev => {
       if (prev.length === totalSlots) return prev;
@@ -343,7 +323,7 @@ export default function GridMakerPage() {
       }
       return nextSlots;
     });
-  }, [totalSlots, selectedSizeId, customSizes]);
+  }, [totalSlots]);
 
   const cmToPx = useMemo(() => dpi / 2.54, [dpi]);
   
@@ -427,6 +407,16 @@ export default function GridMakerPage() {
     }
     e.target.value = "";
   };
+
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isDistributionOpen, setIsDistributionOpen] = useState(false);
+  const [targetSlotString, setTargetSlotString] = useState("");
+  const [bulkFiles, setBulkFiles] = useState<any[]>([]);
+  
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const bulkInputRef = useRef<HTMLInputElement>(null);
+  const [activeSlot, setActiveSlot] = useState<number | null>(null);
 
   const handleBulkFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -737,6 +727,17 @@ export default function GridMakerPage() {
     pdf.save(`pixelpass-hd.pdf`);
   };
 
+  const [isAddSizeOpen, setIsAddSizeOpen] = useState(false);
+  const [editingSizeId, setEditingSizeId] = useState<string | null>(null);
+  const [newSize, setNewSize] = useState({
+    name: '',
+    description: '',
+    width: 35,
+    height: 45,
+    unit: 'mm' as Unit,
+    dpi: 300
+  });
+
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <Header />
@@ -750,7 +751,7 @@ export default function GridMakerPage() {
               </Link>
             </Button>
             <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-              <Grid3x3 className="h-8 w-8" /> HD Drag & Place Grid
+              <Grid3X3 className="h-8 w-8" /> HD Drag & Place Grid
             </h1>
             <p className="text-muted-foreground text-xs font-medium uppercase tracking-widest">
               {dpi} DPI Rendering • {canvasWidthPx} x {canvasHeightPx} Pixels
