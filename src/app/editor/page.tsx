@@ -157,7 +157,7 @@ function SortableSizeItem({
               {selectedSizeId === size.id && <CheckCircle2 className="h-3 w-3 text-primary" />}
             </div>
             <div className="text-[10px] text-muted-foreground font-medium mt-0.5">
-              {size.widthCm} x {size.heightCm} cm
+              {size.widthCm} x {size.heightCm} cm {size.dpi ? `@ ${size.dpi} DPI` : ''}
             </div>
             {size.description && (
               <div className="text-[9px] text-muted-foreground italic mt-1 line-clamp-1">{size.description}</div>
@@ -811,7 +811,7 @@ export default function EditorPage() {
                       <DialogContent className="sm:max-w-md">
                         <DialogHeader>
                           <DialogTitle>{editingSizeId ? 'Edit' : 'Add'} Image Size Presets</DialogTitle>
-                          <DialogDescription>Define specific dimensions for your photo requirements.</DialogDescription>
+                          <DialogDescription>Define specific dimensions and resolution for your photos.</DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4 py-4">
                           <div className="space-y-2">

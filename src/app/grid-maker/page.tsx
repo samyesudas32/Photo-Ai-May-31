@@ -305,7 +305,7 @@ export default function GridMakerPage() {
     }
   }, [customSizes, selectedSizeId]);
 
-  // Refined slots sync logic to prevent infinite loops or redundant updates
+  // Handle slot adjustments when total slots change
   useEffect(() => {
     setSlots(prev => {
       if (prev.length === totalSlots) return prev;
@@ -538,96 +538,6 @@ export default function GridMakerPage() {
     }
   };
 
-  const convertToCm = (val: number, fromUnit: Unit, targetDpi: number): number => {
-    if (fromUnit === 'cm') return val;
-    if (fromUnit === 'mm') return val / 10;
-    if (fromUnit === 'in') return val * 2.54;
-    if (fromUnit === 'px') return (val / targetDpi) * 2.54;
-    return val;
-  };
-
-  const convertFromCm = (cm: number, toUnit: Unit, targetDpi: number): number => {
-    if (toUnit === 'cm') return cm;
-    if (toUnit === 'mm') return cm * 10;
-    if (toUnit === 'in') return cm / 2.54;
-    if (toUnit === 'px') return (cm / 2.54) * targetDpi;
-    return cm;
-  };
-
-  const handleUnitChange = (nextUnit: Unit) => {
-    const currentWidthInCm = convertToCm(newSize.width, newSize.unit, newSize.dpi);
-    const currentHeightInCm = convertToCm(newSize.height, newSize.unit, newSize.dpi);
-    setNewSize(prev => ({
-      ...prev,
-      unit: nextUnit,
-      width: nextUnit === 'mm' || nextUnit === 'px' ? Math.round(convertFromCm(currentWidthInCm, nextUnit, prev.dpi)) : Number(convertFromCm(currentWidthInCm, nextUnit, prev.dpi).toFixed(2)),
-      height: nextUnit === 'mm' || nextUnit === 'px' ? Math.round(convertFromCm(currentHeightInCm, nextUnit, prev.dpi)) : Number(convertFromCm(currentHeightInCm, nextUnit, prev.dpi).toFixed(2))
-    }));
-  };
-
-  const handleSaveCustomSize = () => {
-    if (!user || !db) {
-      toast({ variant: "destructive", title: "Wait a moment", description: "Your session is still connecting to our servers." });
-      return;
-    }
-    
-    if (!newSize.name || !newSize.width || !newSize.height || newSize.width <= 0 || newSize.height <= 0) {
-      toast({ variant: "destructive", title: "Invalid Input", description: "Please provide a valid name and positive dimensions." });
-      return;
-    }
-
-    const widthInCm = convertToCm(newSize.width, newSize.unit, newSize.dpi);
-    const heightInCm = convertToCm(newSize.height, newSize.unit, newSize.dpi);
-
-    const sizeId = editingSizeId || doc(collection(db, 'users', user.uid, 'custom_passport_sizes')).id;
-    const existingSize = customSizes?.find(s => s.id === editingSizeId);
-    
-    const sizeData: CustomSize = {
-      id: sizeId,
-      userId: user.uid,
-      name: newSize.name,
-      description: newSize.description || '',
-      widthCm: Number(widthInCm.toFixed(2)),
-      heightCm: Number(heightInCm.toFixed(2)),
-      dpi: newSize.dpi,
-      order: existingSize ? existingSize.order : (customSizes?.length || 0),
-      createdAt: existingSize ? existingSize.createdAt : new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    setDocumentNonBlocking(doc(db, 'users', user.uid, 'custom_passport_sizes', sizeId), sizeData, { merge: true });
-    
-    setIsAddSizeOpen(false);
-    setEditingSizeId(null);
-    setNewSize({ name: '', description: '', width: 35, height: 45, unit: 'mm', dpi: 300 });
-    toast({ title: editingSizeId ? "Size Updated" : "Size Saved Permanently", description: "Resolution profile secured in cloud." });
-  };
-
-  const handleEditSize = (size: CustomSize) => {
-    setEditingSizeId(size.id);
-    setNewSize({
-      name: size.name,
-      description: size.description,
-      width: Math.round(size.widthCm * 10),
-      height: Math.round(size.heightCm * 10),
-      unit: 'mm',
-      dpi: size.dpi || 300
-    });
-    setIsAddSizeOpen(true);
-  };
-
-  const handleDeleteSize = (sizeId: string) => {
-    if (!user || !db) return;
-    deleteDocumentNonBlocking(doc(db, 'users', user.uid, 'custom_passport_sizes', sizeId));
-    if (selectedSizeId === sizeId) {
-      setSelectedSizeId('');
-    }
-    toast({
-      title: "Size Deleted",
-      description: "The resolution definition has been removed.",
-    });
-  };
-
   const drawCanvas = useCallback(async () => {
     if (typeof window === 'undefined' || !canvasRef.current) return;
     const canvas = canvasRef.current;
@@ -737,6 +647,96 @@ export default function GridMakerPage() {
     unit: 'mm' as Unit,
     dpi: 300
   });
+
+  const convertToCm = (val: number, fromUnit: Unit, targetDpi: number): number => {
+    if (fromUnit === 'cm') return val;
+    if (fromUnit === 'mm') return val / 10;
+    if (fromUnit === 'in') return val * 2.54;
+    if (fromUnit === 'px') return (val / targetDpi) * 2.54;
+    return val;
+  };
+
+  const convertFromCm = (cm: number, toUnit: Unit, targetDpi: number): number => {
+    if (toUnit === 'cm') return cm;
+    if (toUnit === 'mm') return cm * 10;
+    if (toUnit === 'in') return cm / 2.54;
+    if (toUnit === 'px') return (cm / 2.54) * targetDpi;
+    return cm;
+  };
+
+  const handleUnitChange = (nextUnit: Unit) => {
+    const currentWidthInCm = convertToCm(newSize.width, newSize.unit, newSize.dpi);
+    const currentHeightInCm = convertToCm(newSize.height, newSize.unit, newSize.dpi);
+    setNewSize(prev => ({
+      ...prev,
+      unit: nextUnit,
+      width: nextUnit === 'mm' || nextUnit === 'px' ? Math.round(convertFromCm(currentWidthInCm, nextUnit, prev.dpi)) : Number(convertFromCm(currentWidthInCm, nextUnit, prev.dpi).toFixed(2)),
+      height: nextUnit === 'mm' || nextUnit === 'px' ? Math.round(convertFromCm(currentHeightInCm, nextUnit, prev.dpi)) : Number(convertFromCm(currentHeightInCm, nextUnit, prev.dpi).toFixed(2))
+    }));
+  };
+
+  const handleSaveCustomSize = () => {
+    if (!user || !db) {
+      toast({ variant: "destructive", title: "Wait a moment", description: "Your session is still connecting to our servers." });
+      return;
+    }
+    
+    if (!newSize.name || !newSize.width || !newSize.height || newSize.width <= 0 || newSize.height <= 0) {
+      toast({ variant: "destructive", title: "Invalid Input", description: "Please provide a valid name and positive dimensions." });
+      return;
+    }
+
+    const widthInCm = convertToCm(newSize.width, newSize.unit, newSize.dpi);
+    const heightInCm = convertToCm(newSize.height, newSize.unit, newSize.dpi);
+
+    const sizeId = editingSizeId || doc(collection(db, 'users', user.uid, 'custom_passport_sizes')).id;
+    const existingSize = customSizes?.find(s => s.id === editingSizeId);
+    
+    const sizeData: CustomSize = {
+      id: sizeId,
+      userId: user.uid,
+      name: newSize.name,
+      description: newSize.description || '',
+      widthCm: Number(widthInCm.toFixed(2)),
+      heightCm: Number(heightInCm.toFixed(2)),
+      dpi: newSize.dpi,
+      order: existingSize ? existingSize.order : (customSizes?.length || 0),
+      createdAt: existingSize ? existingSize.createdAt : new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    setDocumentNonBlocking(doc(db, 'users', user.uid, 'custom_passport_sizes', sizeId), sizeData, { merge: true });
+    
+    setIsAddSizeOpen(false);
+    setEditingSizeId(null);
+    setNewSize({ name: '', description: '', width: 35, height: 45, unit: 'mm', dpi: 300 });
+    toast({ title: editingSizeId ? "Size Updated" : "Size Saved Permanently", description: "Resolution profile secured in cloud." });
+  };
+
+  const handleEditSize = (size: CustomSize) => {
+    setEditingSizeId(size.id);
+    setNewSize({
+      name: size.name,
+      description: size.description,
+      width: Math.round(size.widthCm * 10),
+      height: Math.round(size.heightCm * 10),
+      unit: 'mm',
+      dpi: size.dpi || 300
+    });
+    setIsAddSizeOpen(true);
+  };
+
+  const handleDeleteSize = (sizeId: string) => {
+    if (!user || !db) return;
+    deleteDocumentNonBlocking(doc(db, 'users', user.uid, 'custom_passport_sizes', sizeId));
+    if (selectedSizeId === sizeId) {
+      setSelectedSizeId('');
+    }
+    toast({
+      title: "Size Deleted",
+      description: "The resolution definition has been removed.",
+    });
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
