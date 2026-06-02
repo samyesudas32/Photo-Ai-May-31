@@ -58,3 +58,5 @@ This project is licensed under the MIT License.
 # Passport-Size-Photo-AI
 # My-Passport
 # Photo-Ai-May-31
+# PixelPass-AI-June-2
+# PixelPass-AI-June-2
