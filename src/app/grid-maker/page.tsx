@@ -827,6 +827,14 @@ export default function GridMakerPage() {
                           variant="outline" 
                           size="sm" 
                           className="h-7 text-[10px] rounded-full px-3"
+                          onClick={() => setTargetSlotString("1, 2, 3, 5, 6, 7")}
+                        >
+                          1, 2, 3, 5, 6, 7
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="h-7 text-[10px] rounded-full px-3"
                           onClick={() => setTargetSlotString("1-" + totalSlots)}
                         >
                           Fill All Slots
