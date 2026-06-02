@@ -5,7 +5,7 @@ import {
   Upload, 
   Download, 
   ArrowLeft, 
-  Grid3x3, 
+  Grid3X3, 
   FileText, 
   Trash2,
   Plus,
@@ -58,6 +58,26 @@ import {
 import { doc, collection, query, orderBy } from "firebase/firestore";
 import { Select, SelectContent, SelectItem, SelectValue, SelectTrigger } from "@/components/ui/select";
 import { initiateAnonymousSignIn } from "@/firebase/non-blocking-login";
+
+// Dnd Kit Imports
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 
 // CONSTANTS - High Precision Blueprint Defaults (at 300 DPI)
 const DEFAULT_DPI = 300;
@@ -176,25 +196,6 @@ function SortableSlot({
     </div>
   );
 }
-
-// Dnd Kit Imports needs to be inside the file or at top
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  rectSortingStrategy,
-  useSortable,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 
 export default function GridMakerPage() {
   const { user, isUserLoading } = useUser();
@@ -359,8 +360,6 @@ export default function GridMakerPage() {
 
   // Derived Pixel Dimensions
   const canvasWidthPx = useMemo(() => {
-    // We strictly use the pixel-based summing for the blueprint case, or inches*dpi for others.
-    // For manual control, we'll let the user define margins and gaps.
     let totalW = marginLeft + marginRight;
     const colWidths = Array(numCols).fill(0);
     slots.slice(0, numCols).forEach((slot, i) => {
@@ -466,6 +465,11 @@ export default function GridMakerPage() {
         }
       });
       targetIndices = Array.from(new Set(targetIndices)).filter(n => n >= 0 && n < totalSlots);
+    }
+
+    if (targetIndices.length === 0) {
+      toast({ variant: "destructive", title: "Invalid Range", description: "Please provide valid slot numbers." });
+      return;
     }
 
     const loadedFiles = await Promise.all(bulkFiles.map(file => {
@@ -752,7 +756,7 @@ export default function GridMakerPage() {
               </Link>
             </Button>
             <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-              <Grid3x3 className="h-8 w-8" /> HD Drag & Place Grid
+              <Grid3X3 className="h-8 w-8" /> HD Drag & Place Grid
             </h1>
             <p className="text-muted-foreground text-xs font-medium uppercase tracking-widest">
               {dpi} DPI Rendering • {canvasWidthPx} x {canvasHeightPx} Pixels
@@ -807,6 +811,28 @@ export default function GridMakerPage() {
                       <Label className="text-[10px] font-black uppercase text-muted-foreground">Target Slots:</Label>
                     </div>
                     <Input placeholder="e.g., 1, 3-5, 8" value={targetSlotString} onChange={(e) => setTargetSlotString(e.target.value)} />
+                    
+                    <div className="flex flex-col gap-2 mt-2">
+                      <Label className="text-[9px] font-bold uppercase text-muted-foreground">Quick Presets:</Label>
+                      <div className="flex flex-wrap gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="h-7 text-[10px] rounded-full px-3"
+                          onClick={() => setTargetSlotString("1, 2, 5, 6")}
+                        >
+                          1, 2, 5, 6
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="h-7 text-[10px] rounded-full px-3"
+                          onClick={() => setTargetSlotString("1-" + totalSlots)}
+                        >
+                          Fill All Slots
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                   <div 
                     className="border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-accent/50 transition-colors"
