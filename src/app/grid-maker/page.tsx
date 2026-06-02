@@ -5,7 +5,7 @@ import {
   Upload, 
   Download, 
   ArrowLeft, 
-  Grid3X3, 
+  Grid3x3, 
   FileText, 
   Trash2,
   Plus,
@@ -74,6 +74,7 @@ import {
   SortableContext,
   sortableKeyboardCoordinates,
   rectSortingStrategy,
+  verticalListSortingStrategy,
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -142,8 +143,6 @@ function SortableSlot({
     opacity: isDragging ? 0.3 : 1,
   };
 
-  const currentSize = customSizes?.find(s => s.id === slot.sizeId);
-
   return (
     <div ref={setNodeRef} style={style} className="flex flex-col gap-1">
       <div
@@ -205,7 +204,7 @@ export default function GridMakerPage() {
 
   // Canvas & Grid State
   const [dpi, setDpi] = useState(DEFAULT_DPI);
-  const [canvasDim, setCanvasDim] = useState({ width: 6, height: 4 }); // In inches
+  const [canvasDim, setCanvasDim] = useState({ width: 6, height: 4 }); 
   const [numCols, setNumCols] = useState(4);
   const [numRows, setNumRows] = useState(2);
   
@@ -231,7 +230,6 @@ export default function GridMakerPage() {
     })
   );
 
-  // Custom Size Management State
   const [isAddSizeOpen, setIsAddSizeOpen] = useState(false);
   const [editingSizeId, setEditingSizeId] = useState<string | null>(null);
   const [newSize, setNewSize] = useState({
@@ -253,7 +251,6 @@ export default function GridMakerPage() {
   const bulkInputRef = useRef<HTMLInputElement>(null);
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
 
-  // Auth & Profile Initialization
   useEffect(() => {
     if (!user && !isUserLoading && auth) {
       initiateAnonymousSignIn(auth);
@@ -285,7 +282,6 @@ export default function GridMakerPage() {
 
   const { data: customSizes, isLoading: isSizesLoading } = useCollection<CustomSize>(customSizesQuery);
 
-  // Seed default sizes
   useEffect(() => {
     if (user && db && customSizes && customSizes.length === 0 && !isSizesLoading && !isUserLoading) {
       const defaultSizes = [
@@ -302,8 +298,8 @@ export default function GridMakerPage() {
           id: 'blueprint-box',
           name: 'Blueprint Box',
           description: 'Custom 382x490px at 300DPI',
-          widthCm: 3.23, // 382/300 * 2.54
-          heightCm: 4.15, // 490/300 * 2.54
+          widthCm: 3.23,
+          heightCm: 4.15,
           order: 1,
           dpi: 300
         }
@@ -330,7 +326,6 @@ export default function GridMakerPage() {
     }
   }, [customSizes, selectedSizeId]);
 
-  // Initialize slots
   useEffect(() => {
     setSlots(prev => {
       if (prev.length === totalSlots) return prev;
@@ -358,7 +353,6 @@ export default function GridMakerPage() {
     return { widthCm: 3.5, heightCm: 4.5 };
   }, [customSizes]);
 
-  // Derived Pixel Dimensions
   const canvasWidthPx = useMemo(() => {
     let totalW = marginLeft + marginRight;
     const colWidths = Array(numCols).fill(0);
@@ -756,7 +750,7 @@ export default function GridMakerPage() {
               </Link>
             </Button>
             <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-              <Grid3X3 className="h-8 w-8" /> HD Drag & Place Grid
+              <Grid3x3 className="h-8 w-8" /> HD Drag & Place Grid
             </h1>
             <p className="text-muted-foreground text-xs font-medium uppercase tracking-widest">
               {dpi} DPI Rendering • {canvasWidthPx} x {canvasHeightPx} Pixels
